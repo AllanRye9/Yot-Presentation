@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import sys
 import time
 import datetime
@@ -8,10 +7,6 @@ import threading
 import queue
 import logging
 from pathlib import Path
-import win32com.client
-import pythoncom
-import pyautogui
-import speech_recognition as sr
 
 # --- Dependency Check ---
 REQUIRED = [
@@ -33,6 +28,11 @@ def check_deps():
         sys.exit(1)
 
 check_deps()
+
+import win32com.client
+import pythoncom
+import pyautogui
+import speech_recognition as sr
 
 # ============================================================================
 # CONFIGURATION & COMMANDS
@@ -93,6 +93,20 @@ class PPTController:
                     'is_regex': r'(\d+)' in p
                 })
 
+    def check_microphone(self):
+        """Verifies if at least one microphone is available."""
+        mics = sr.Microphone.list_microphone_names()
+        if not mics:
+            self.logger.error("NO INPUT DEVICES DETECTED. Please plug in a microphone.")
+            print("\n" + "!"*60)
+            print(" ERROR: No microphone found!")
+            print(" 1. Ensure your microphone is plugged in.")
+            print(" 2. Check Windows Privacy Settings (Allow apps to access mic).")
+            print("!"*60)
+            input("\nPress Enter to exit...")
+            return False
+        return True
+
     def connect(self):
         """Connects to a running instance of PowerPoint."""
         try:
@@ -105,20 +119,9 @@ class PPTController:
             self.logger.error(f"Connection failed: {e}")
             return False
 
-    def sync_state(self):
-        """Refresh PPT state to ensure we aren't out of sync."""
-        try:
-            if self.ppt_app.SlideShowWindows.Count > 0:
-                view = self.ppt_app.SlideShowWindows(1).View
-                return view.Slide.SlideNumber, True
-            return self.ppt_app.ActiveWindow.View.Slide.SlideNumber, False
-        except:
-            return 1, False
-
     def _focus_window(self):
         """Standardizes window focus before sending keys."""
         try:
-            # Simple focus using AppActivate
             import win32com.client
             shell = win32com.client.Dispatch("WScript.Shell")
             shell.AppActivate("PowerPoint")
@@ -129,21 +132,24 @@ class PPTController:
     def listen_loop(self):
         """Threaded microphone listener."""
         recognizer = sr.Recognizer()
-        # Adjust sensitivity for better performance
         recognizer.dynamic_energy_threshold = True
         
         while self.running:
-            with sr.Microphone() as source:
-                try:
+            try:
+                with sr.Microphone() as source:
                     # Short ambient adjustment
                     recognizer.adjust_for_ambient_noise(source, duration=0.5)
                     audio = recognizer.listen(source, timeout=1, phrase_time_limit=3)
                     text = recognizer.recognize_google(audio).lower()
                     self.command_queue.put(text)
-                except (sr.WaitTimeoutError, sr.UnknownValueError):
-                    continue
-                except Exception as e:
-                    self.logger.debug(f"Mic error: {e}")
+            except (sr.WaitTimeoutError, sr.UnknownValueError):
+                continue
+            except OSError:
+                self.logger.error("Microphone disconnected during session.")
+                self.running = False
+                break
+            except Exception as e:
+                self.logger.debug(f"Mic error: {e}")
 
     def execute(self, text):
         """Logic for executing identified commands."""
@@ -177,7 +183,6 @@ class PPTController:
             elif found_cmd == "blackout":
                 pyautogui.press('b')
             elif found_cmd == "jump_slide" and params:
-                # In SlideShow mode, typing number + enter jumps to slide
                 pyautogui.write(params)
                 pyautogui.press('enter')
             elif found_cmd == "exit":
@@ -192,11 +197,14 @@ class PPTController:
             return False
 
     def run(self):
-        if not self.connect():
-            print("Please open PowerPoint and a presentation first!")
+        if not self.check_microphone():
             return
 
-        # Start listening thread
+        if not self.connect():
+            print("Please open PowerPoint and a presentation first!")
+            input("\nPress Enter to exit...")
+            return
+
         threading.Thread(target=self.listen_loop, daemon=True).start()
         
         print("\n" + "="*50)
