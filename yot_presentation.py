@@ -14,6 +14,9 @@ import threading
 import time
 from typing import Dict, Optional
 
+# Configuration constants
+THREAD_SHUTDOWN_TIMEOUT_SECONDS = 5  # Time to wait for monitoring thread to stop gracefully
+
 
 class VoiceControlledPowerPoint:
     """
@@ -33,8 +36,18 @@ class VoiceControlledPowerPoint:
         self.monitoring_thread: Optional[threading.Thread] = None
         
         # Load configuration
-        with open(config_file, 'r') as f:
-            self.config = json.load(f)
+        try:
+            with open(config_file, 'r') as f:
+                self.config = json.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Configuration file '{config_file}' not found. "
+                "Please ensure config.json exists in the current directory."
+            )
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Invalid JSON in configuration file '{config_file}': {e}"
+            )
         
         self.commands: Dict[str, str] = self.config.get("commands", {})
         
@@ -156,7 +169,8 @@ class VoiceControlledPowerPoint:
             return
         
         self.running = True
-        self.monitoring_thread = threading.Thread(target=self.listen_and_execute, daemon=True)
+        # Use daemon=False to ensure proper cleanup; stop() method handles thread termination
+        self.monitoring_thread = threading.Thread(target=self.listen_and_execute, daemon=False)
         self.monitoring_thread.start()
         print("Voice-controlled PowerPoint system started.")
 
@@ -172,7 +186,9 @@ class VoiceControlledPowerPoint:
         self.running = False
         
         if self.monitoring_thread:
-            self.monitoring_thread.join(timeout=5)
+            self.monitoring_thread.join(timeout=THREAD_SHUTDOWN_TIMEOUT_SECONDS)
+            if self.monitoring_thread.is_alive():
+                print("Warning: Monitoring thread did not stop within timeout period.")
         
         print("System stopped.")
 
