@@ -1,0 +1,24 @@
+{
+  "commands": {
+    "next": "Right",
+    "next slide": "Right",
+    "previous": "Left",
+    "previous slide": "Left",
+    "back": "Left",
+    "first": "Home",
+    "first slide": "Home",
+    "last": "End",
+    "last slide": "End",
+    "start presentation": "F5",
+    "end presentation": "Escape",
+    "exit presentation": "Escape",
+    "stop": "Escape",
+    "black screen": "b",
+    "white screen": "w"
+  },
+  "recognition": {
+    "energy_threshold": 4000,
+    "pause_threshold": 0.8,
+    "phrase_time_limit": 3
+  }
+}
