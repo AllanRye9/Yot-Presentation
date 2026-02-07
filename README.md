@@ -1,80 +1,244 @@
-# Yot-Presentation
-🎙️ PowerPoint Voice Control System
-A robust, hands-free solution for presenters. This Python-based utility uses real-time speech recognition to control Microsoft PowerPoint, allowing speakers to navigate slides, jump to specific pages, and manage presentation modes using only their voice.
+# Yot_Presentation v2.0
 
-## ✨ Features
+🎙️ **AI-Powered Voice Control for PowerPoint Presentations**
 
-- **Natural Language Processing**: Supports multiple phrases for a single action (e.g., "next," "advance," or "forward").
-- **Direct Slide Jumping**: Say "Slide 5" to jump immediately to that page.
-- **Smart State Sync**: Automatically detects if you are in "Edit Mode" or "Slideshow Mode" and adjusts command execution accordingly.
-- **Automatic Focus**: Attempts to bring the PowerPoint window to the foreground before executing commands.
-- **Robust Logging**: Keeps a timestamped log of all recognized phrases and executed actions in the `/logs` directory.
+A next-generation, hands-free presentation system that uses intelligent speech recognition and fuzzy logic to control Microsoft PowerPoint naturally. Speak conversationally—no need to memorize exact commands.
+
+---
+
+## 🆕 What's New in v2.0
+
+### **The Human-First Upgrade**
+
+Version 2.0 transforms Yot_Presentation from a rigid command parser into an intelligent assistant that understands *intent*, not just exact words.
+
+#### **1. Hybrid Matching Engine**
+- **Stage 1 (Regex)**: High-precision pattern matching for data-heavy commands like "Slide 5" or "Jump to 12"
+- **Stage 2 (Fuzzy Logic)**: AI-powered similarity scoring that recognizes your intent even with:
+  - Mumbled speech ("nex sli" → "next slide")
+  - Natural phrasing ("go forward please" → "next slide")
+  - Background noise interference
+  - Accents and speech variations
+
+#### **2. Real-Time Confidence Scoring**
+Every command now displays a match confidence percentage:
+- **100%**: Exact match via regex
+- **85-99%**: Successfully rescued by fuzzy logic
+- **<85%**: Command not recognized (adjust your speech or environment)
+
+#### **3. Enhanced Reliability**
+- **Force Focus Technology**: Aggressively brings PowerPoint to the foreground, preventing commands from "getting lost" to background windows
+- **Asynchronous Processing**: Separated listening and execution threads eliminate lag and freezing during voice processing
+- **Smart Error Tolerance**: Powered by the `thefuzz` library for robust natural language understanding
+
+---
+
+## ✨ Core Features
+
+### **Natural Language Processing**
+- Supports multiple conversational phrases for every action
+- No need to memorize "magic words"—speak naturally
+- Handles variations, synonyms, and casual phrasing
+
+### **Smart Navigation**
+- **Direct Slide Jumping**: "Slide 5", "Go to page 10", "Jump to 3"
+- **Sequential Navigation**: "Next", "Previous", "Go back", "Advance"
+- **Presentation Control**: "Start", "Begin presenting", "End slideshow"
+
+### **Intelligent Mode Detection**
+- Automatically detects Edit Mode vs. Slideshow Mode
+- Adjusts command execution based on current PowerPoint state
+- Seamless transitions between modes
+
+### **Professional Logging**
+- Timestamped activity logs in `/logs` directory
+- Confidence scores for debugging and optimization
+- Full command history for post-presentation analysis
+
+---
 
 ## 🚦 Getting Started
 
-### Prerequisites
+### **Prerequisites**
 
-- **Operating System**: Windows 10 or 11 (Required for COM automation).
-- **Software**: Microsoft PowerPoint (2016 or newer recommended).
-- **Python**: 3.8 or higher.
-- **Hardware**: A working microphone.
+- **Operating System**: Windows 10 or 11 (required for COM automation)
+- **Software**: Microsoft PowerPoint 2016 or newer
+- **Python**: 3.8 or higher
+- **Hardware**: Working microphone
 
-### Installation
+### **Installation**
 
-1. Clone or download this repository to your local machine.
-
-2. Install dependencies using pip:
-
+1. **Clone the repository**:
 ```bash
-pip install pywin32 pyautogui SpeechRecognition PyAudio
+git clone https://github.com/yourusername/yot_presentation.git
+cd yot_presentation
 ```
 
-**Note**: If PyAudio fails to install, try using `pip install pipwin` followed by `pipwin install pyaudio`.
+2. **Install dependencies**:
+```bash
+pip install pywin32 pyautogui SpeechRecognition PyAudio thefuzz
+```
 
-## 🛠️ Usage
+**Note**: If PyAudio installation fails:
+```bash
+pip install pipwin
+pipwin install pyaudio
+```
 
-1. Launch PowerPoint and open the presentation you wish to use.
+### **Quick Start**
 
+1. Open your PowerPoint presentation
 2. Run the controller:
-
 ```bash
-python ppt_voice_control.py
+python yot_presentation.py
 ```
+3. **Wait for calibration** (1 second background noise adjustment)
+4. **Start speaking** when you see `[SYSTEM ONLINE]`
 
-3. **Wait for Calibration**: The system will spend 1 second calibrating for background noise.
+---
 
-4. **Speak Clearly**: Once you see the `[SYSTEM ONLINE]` message, speak your commands.
+## 🎤 Voice Commands
 
-### Voice Commands
+### **Navigation Commands**
 
-| Action | Spoken Command (Examples) |
-|--------|---------------------------|
-| Next Slide | "Next", "Forward", "Right", "Advance" |
-| Previous Slide | "Back", "Previous", "Left", "Go back" |
-| Jump to Slide | "Slide 10", "Jump to 5", "Page 2" |
-| Presentation Mode | "Start presentation", "Begin", "Present" |
-| Exit Slideshow | "Stop", "End", "Escape" |
-| Screen Control | "Black screen", "White screen" |
-| System | "Help", "Status", "Exit program" |
+| Action | Spoken Examples |
+|--------|----------------|
+| **Next Slide** | "Next", "Forward", "Right", "Advance", "Go ahead" |
+| **Previous Slide** | "Back", "Previous", "Left", "Go back", "Rewind" |
+| **Jump to Slide** | "Slide 10", "Jump to 5", "Page 2", "Go to 15" |
+
+### **Presentation Control**
+
+| Action | Spoken Examples |
+|--------|----------------|
+| **Start Slideshow** | "Start presentation", "Begin", "Present", "Let's start" |
+| **Exit Slideshow** | "Stop", "End", "Escape", "Finish" |
+| **Black Screen** | "Black screen", "Blank screen", "Go dark" |
+| **White Screen** | "White screen", "Blank white" |
+
+### **System Commands**
+
+| Action | Spoken Examples |
+|--------|----------------|
+| **Help** | "Help", "What can you do", "Commands" |
+| **Status** | "Status", "Are you listening" |
+| **Exit Program** | "Exit program", "Quit", "Shutdown" |
+
+---
 
 ## ⚙️ Configuration
 
-You can customize the command patterns or the sensitivity in the code:
+### **Sensitivity Tuning**
 
-- **Sensitivity**: Adjust `recognizer.energy_threshold` in the script. A higher value (e.g., 600) makes the mic less sensitive to background chatter.
-- **New Commands**: Add entries to the `COMMANDS` dictionary to map new phrases to keyboard shortcuts.
+Adjust microphone sensitivity in `yot_presentation.py`:
+```python
+recognizer.energy_threshold = 600  # Higher = less sensitive to background noise
+```
+
+### **Fuzzy Match Threshold**
+
+Customize the minimum confidence score for fuzzy matching:
+```python
+FUZZY_THRESHOLD = 85  # Minimum similarity percentage (0-100)
+```
+
+### **Adding Custom Commands**
+
+Extend the command dictionary with your own voice triggers:
+```python
+COMMANDS = {
+    "next_slide": {
+        "patterns": ["next", "forward", "advance", "your custom phrase"],
+        "action": "next_slide_function"
+    }
+}
+```
+
+---
 
 ## 📂 Project Structure
+```
+yot_presentation/
+├── yot_presentation.py        # Main application
+├── logs/                      # Auto-generated session logs
+│   └── session_YYYYMMDD_HHMMSS.log
+├── README.md                  # This documentation
+└── requirements.txt           # Python dependencies
+```
 
-- `ppt_voice_control.py`: The main application script.
-- `/logs`: Automatically generated directory containing session logs.
-- `README.md`: This documentation.
+---
+
+## 🔧 Troubleshooting
+
+### **Commands Not Working**
+- **Check Focus**: Click the PowerPoint window once to ensure it's the active application
+- **Review Logs**: Check `/logs` for confidence scores—low scores indicate unclear speech
+- **Adjust Sensitivity**: Lower `energy_threshold` if commands aren't being heard
+
+### **High False Positive Rate**
+- Increase `energy_threshold` to reduce sensitivity to background noise
+- Raise `FUZZY_THRESHOLD` to require more exact matches
+
+### **Internet Connection Issues**
+- The default Google Speech Recognition engine requires active internet
+- For offline use, consider switching to Sphinx (limited accuracy)
+
+---
 
 ## ⚠️ Known Limitations
 
-- **Internet Access**: The default engine uses Google Speech Recognition, which requires an active internet connection.
-- **Focus Issues**: Windows security may occasionally prevent the script from "stealing focus." If commands aren't working, click on the PowerPoint window once to ensure it is the active application.
+- **Internet Required**: Default speech recognition uses Google's cloud service
+- **Windows Only**: COM automation is platform-specific
+- **Focus Management**: Windows security may occasionally prevent automatic focus—manually click PowerPoint if needed
+- **Multilingual Support**: Currently optimized for English commands
+
+---
+
+## 🛣️ Roadmap
+
+- [ ] Offline speech recognition mode
+- [ ] Multi-language support
+- [ ] Custom wake word detection
+- [ ] Integration with Google Slides and Keynote
+- [ ] Voice-controlled annotations and laser pointer
+- [ ] Mobile companion app for remote control
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
 
 ## 📄 License
 
-This project is open source .
+This project is open source and available under the MIT License.
+
+---
+
+## 💡 Tips for Best Results
+
+1. **Speak clearly** at a consistent volume
+2. **Pause briefly** between commands
+3. **Monitor confidence scores** in the console to optimize your speech patterns
+4. **Use direct commands** for critical moments (e.g., "Slide 10" is more reliable than "go to that slide about revenue")
+5. **Test your setup** before the actual presentation
+
+---
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/AllanRye9/yot_presentation/issues)
+- **Documentation**: [Wiki](https://github.com/AllanRye9/yot_presentation/wiki)
+- **Discussions**: [Community Forum](https://github.com/AllanRye9/yot_presentation/discussions)
+
+---
+
+**Made with ❤️ for presenters who want to focus on their message, not their mouse.**
