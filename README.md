@@ -236,7 +236,7 @@ This project is open source and available under the MIT License.
 ## 📞 Support
 
 - **Issues**: [GitHub Issues](https://github.com/AllanRye9/Yot-Presentation/issues)
-- **Documentation**: [Wiki](https://github.com/AllanRye9/yot_presentation/wiki)
+- **Documentation**: [Wiki](https://github.com/AllanRye9/Yot-Presentation/wiki#-wiki-overview)
 - **Discussions**: [Community Forum](https://github.com/AllanRye9/Yot-Presentation/discussions)
 
 ---
