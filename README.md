@@ -1,4 +1,4 @@
-# Yot_Presentation v2.0 🎙️
+# Yot_Presentation v5.3 🎙️
 
 <div align="center">
 
@@ -31,11 +31,41 @@ Yot_Presentation is a next-generation, hands-free presentation system that combi
 
 ---
 
-## 🆕 What's New in v2.0
+## 📸 Application Gallery
+
+<div align="center">
+
+### Visual Demonstration
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="a.jpeg" alt="Interface Screenshot A" width="300"/>
+      <br />
+      <b>Voice Control Interface</b>
+    </td>
+    <td align="center">
+      <img src="b.jpeg" alt="Interface Screenshot B" width="300"/>
+      <br />
+      <b>Command Recognition System</b>
+    </td>
+    <td align="center">
+      <img src="c.jpeg" alt="Interface Screenshot C" width="300"/>
+      <br />
+      <b>Presentation Control in Action</b>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+---
+
+## 🆕 What's New in v5.3
 
 ### The Human-First Upgrade
 
-Version 2.0 transforms Yot_Presentation from a rigid command parser into an intelligent assistant that understands *intent*, not just exact words.
+Version 5.3 transforms Yot_Presentation from a rigid command parser into an intelligent assistant that understands *intent*, not just exact words.
 
 #### 🔧 Hybrid Matching Engine
 - **Stage 1 (Regex)**: High-precision pattern matching for data-heavy commands

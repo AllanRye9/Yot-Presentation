@@ -266,7 +266,7 @@ class PPTController:
         if not self.check_microphone(): return
 
         print("\n" + "="*50)
-        print(" 🗣️  VOICE CONTROLLER v2.0 (Fuzzy Enhanced)")
+        print(" 🗣️  VOICE CONTROLLER v5.3 (Fuzzy Enhanced)")
         print(f" 🎯 Fuzzy Threshold: {FUZZY_THRESHOLD}%")
         print("="*50)
         print(" Commands: 'Next', 'Back', 'Jump to 5', 'Blackout', 'Exit'\n")
