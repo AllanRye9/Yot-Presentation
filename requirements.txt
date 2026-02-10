@@ -1,0 +1,5 @@
+pywin32>=305
+pyautogui>=0.9.53
+SpeechRecognition>=3.10.0
+thefuzz>=0.20.0
+PyAudio>=0.2.13

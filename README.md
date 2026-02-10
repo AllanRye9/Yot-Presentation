@@ -61,9 +61,25 @@ Yot_Presentation is a next-generation, hands-free presentation system that combi
 
 ---
 
-## 🆕 What's New in v5.3
+## 🆕 Latest Versions
 
-### The Human-First Upgrade
+### v5.2: LOCAL TRAINING DATA 🆕
+**New in v5.2** - The training data update! This version introduces comprehensive training data collection for ML/LLM model training:
+
+- 📊 **Text-Only Logging**: Logs all speech-to-text conversions (no audio files)
+- 💾 **Local Storage**: SQLite database + JSONL files for portability
+- 🤖 **ML Export**: Export training datasets in JSON format for TensorFlow, PyTorch, etc.
+- 🔄 **Smart Fallback**: Works offline with cached text
+- 🔒 **Privacy-First**: No cloud, no servers, complete data control
+
+**[📖 Read the full v5.2 Documentation](V52_DOCUMENTATION.md)**
+
+**Quick Start v5.2:**
+```bash
+python powerpoint_voice_controller_v52.py
+```
+
+### v5.3: The Human-First Upgrade
 
 Yot_Presentation v5.3 continues the evolution of an intelligent assistant that understands *intent*, not just exact words. Building on the foundation established in v2.0, this version brings enhanced stability and performance improvements.
 
@@ -328,8 +344,40 @@ pipwin install pyaudio
 
 ---
 
+## 📦 Version Comparison
+
+### Which Version Should You Use?
+
+| Feature | v5.2 | v5.3 |
+|---------|------|------|
+| **Voice Control** | ✅ | ✅ |
+| **Fuzzy Matching** | ✅ | ✅ |
+| **Training Data Logging** | **✅ NEW** | ❌ |
+| **ML/LLM Export** | **✅ NEW** | ❌ |
+| **Local Database** | **✅ SQLite** | ❌ |
+| **Statistics Dashboard** | **✅ Comprehensive** | Basic |
+| **Fallback Cache** | **✅ Smart** | Basic |
+| **Privacy Features** | **✅ Enhanced** | Good |
+| **File Size** | Larger | Smaller |
+| **Best For** | ML Training, Data Collection | Simple Voice Control |
+
+**Use v5.2 if you want:**
+- To collect training data for ML models
+- Comprehensive statistics and monitoring
+- Smart offline fallback
+- Export capabilities for AI training
+
+**Use v5.3 if you want:**
+- Simple, lightweight voice control
+- No training data collection
+- Minimal file structure
+
+---
+
 ## 🗺️ Roadmap
 
+- [x] Training data collection (v5.2)
+- [x] ML/LLM export (v5.2)
 - [ ] Multi-language support (Spanish, French, German)
 - [ ] Custom command profiles
 - [ ] Integration with Google Slides
