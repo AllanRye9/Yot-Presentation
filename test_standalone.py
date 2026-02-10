@@ -213,7 +213,7 @@ class LocalTrainingDataLogger:
             conn.close()
     
     def export_training_set(self, output_path: Path, 
-                           confidence_threshold: float = 0.80) -> Dict[str, Any]:
+                           threshold: float = 0.80) -> Dict[str, Any]:
         """Export training dataset for ML"""
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
@@ -224,7 +224,7 @@ class LocalTrainingDataLogger:
                 FROM training_data
                 WHERE confidence >= ?
                 ORDER BY timestamp DESC
-            ''', (confidence_threshold,))
+            ''', (threshold,))
             
             training_examples = []
             for row in cursor.fetchall():
@@ -240,7 +240,7 @@ class LocalTrainingDataLogger:
                 'metadata': {
                     'exported_at': datetime.now().isoformat(),
                     'total_examples': len(training_examples),
-                    'confidence_threshold': confidence_threshold,
+                    'confidence_threshold': threshold,
                     'version': '5.2'
                 },
                 'training_examples': training_examples
@@ -320,7 +320,7 @@ def test_local_training_data_logger():
         assert stats['confidence']['average'] > 0.85
         
         export_path = Path(tmpdir) / "export.json"
-        export_data = logger.export_training_set(export_path, confidence_threshold=0.85)
+        export_data = logger.export_training_set(export_path, threshold=0.85)
         assert export_data['metadata']['total_examples'] == 3
         assert len(export_data['training_examples']) == 3
         

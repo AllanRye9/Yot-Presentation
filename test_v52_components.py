@@ -149,16 +149,16 @@ def test_config():
     print("\nTesting Config...")
     
     config = Config()
-    assert config.ENABLE_TRAINING == True
+    assert config.ENABLE_TRAINING
     assert config.LOG_CONFIDENCE_THRESHOLD == 0.70
     
-    # Test custom config
+    # High-precision logging only
     config2 = Config(
         ENABLE_TRAINING=False,
         TRAINING_DATA_DIR="custom_dir",
         FUZZY_THRESHOLD=85
     )
-    assert config2.ENABLE_TRAINING == False
+    assert not config2.ENABLE_TRAINING
     assert config2.TRAINING_DATA_DIR == Path("custom_dir")
     assert config2.FUZZY_THRESHOLD == 85
     

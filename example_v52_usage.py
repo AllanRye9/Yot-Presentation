@@ -41,7 +41,7 @@ def example_2_statistics():
     
     print(f"\n  📊 Training Data Statistics:")
     print(f"     Total Entries: {stats['training_data']['total_entries']}")
-    print(f"     Database Size: {stats['training_data']['database_size_mb']:.3f} MB")
+    print(f"     Database Size: {stats['training_data']['database_size_mb']:.2f} MB")
     print(f"     Average Confidence: {stats['training_data']['confidence']['average']:.2f}")
     print(f"\n  📈 Commands Distribution:")
     for cmd, count in stats['training_data']['by_command'].items():

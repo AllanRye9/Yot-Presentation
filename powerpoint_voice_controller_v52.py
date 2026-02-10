@@ -299,7 +299,7 @@ class LocalTrainingDataLogger:
             conn.close()
     
     def export_training_set(self, output_path: Path, 
-                           confidence_threshold: float = 0.80) -> Dict[str, Any]:
+                           threshold: float = 0.80) -> Dict[str, Any]:
         """Export training dataset for ML"""
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
@@ -310,7 +310,7 @@ class LocalTrainingDataLogger:
                 FROM training_data
                 WHERE confidence >= ?
                 ORDER BY timestamp DESC
-            ''', (confidence_threshold,))
+            ''', (threshold,))
             
             training_examples = []
             for row in cursor.fetchall():
@@ -326,7 +326,7 @@ class LocalTrainingDataLogger:
                 'metadata': {
                     'exported_at': datetime.datetime.now().isoformat(),
                     'total_examples': len(training_examples),
-                    'confidence_threshold': confidence_threshold,
+                    'confidence_threshold': threshold,
                     'version': '5.2'
                 },
                 'training_examples': training_examples
@@ -395,8 +395,13 @@ class EnhancedSpeechEngine:
             
             # Cache the successful result
             if self.fallback_cache:
-                audio_hash = hashlib.sha256(str(time.time()).encode()).hexdigest()[:16]
-                self.fallback_cache.set(audio_hash, text)
+                # Generate a content-based hash for cache key
+                # In a real implementation, this would use audio features
+                # For now, we use text + timestamp as cache key
+                cache_key = hashlib.sha256(
+                    f"{text}{time.time()}".encode()
+                ).hexdigest()[:16]
+                self.fallback_cache.set(cache_key, text)
             
             return (text, 0.95, "google")
             
@@ -692,7 +697,8 @@ class PowerPointControllerV52:
             self.training_manager and 
             confidence >= self.config.LOG_CONFIDENCE_THRESHOLD and
             cmd):
-            self.training_manager.log_text(text, cmd, confidence / 100.0, source)
+            # confidence is already in range 0.0-1.0, no need to divide
+            self.training_manager.log_text(text, cmd, confidence, source)
         
         if not cmd:
             print(f"❌ Ignored: '{text}'")
