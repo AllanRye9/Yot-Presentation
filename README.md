@@ -65,7 +65,7 @@ Yot_Presentation is a next-generation, hands-free presentation system that combi
 
 ### The Human-First Upgrade
 
-Version 5.3 transforms Yot_Presentation from a rigid command parser into an intelligent assistant that understands *intent*, not just exact words.
+Yot_Presentation v5.3 continues the evolution of an intelligent assistant that understands *intent*, not just exact words. Building on the foundation established in v2.0, this version brings enhanced stability and performance improvements.
 
 #### 🔧 Hybrid Matching Engine
 - **Stage 1 (Regex)**: High-precision pattern matching for data-heavy commands
