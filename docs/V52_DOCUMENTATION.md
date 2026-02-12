@@ -1,6 +1,14 @@
 # PowerPoint Voice Controller v5.2 Documentation
 ## LOCAL TRAINING DATA - No Server, No Audio Files
 
+> **Note:** The module is now located in `src/powerpoint_voice_controller_v52.py`. When importing, ensure you add the `src/` directory to your Python path:
+> ```python
+> import sys
+> from pathlib import Path
+> sys.path.insert(0, str(Path(__file__).parent / "src"))  # Adjust path as needed
+> from powerpoint_voice_controller_v52 import TrainingDataManager, Config
+> ```
+
 ---
 
 ## 📋 Table of Contents
@@ -82,7 +90,7 @@ pip install -r requirements.txt
 
 ```bash
 # Run v5.2 with training enabled
-python powerpoint_voice_controller_v52.py
+python src/powerpoint_voice_controller_v52.py
 ```
 
 The system will automatically:

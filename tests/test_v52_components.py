@@ -9,8 +9,8 @@ from pathlib import Path
 import tempfile
 import shutil
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add src directory to path (parent/parent to go from tests/ to root, then into src/)
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from powerpoint_voice_controller_v52 import (
     AudioTextRecord,
