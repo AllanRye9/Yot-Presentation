@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""
-PowerPoint Voice Controller v5.2 - LOCAL TRAINING DATA
-Simplified Local-Only Training System - No Server, No Audio Files
-
-Features:
-- Logs all speech-to-text conversions (text only, no audio)
-- Stores locally in SQLite + JSONL
-- Exports for ML/LLM training
-- Falls back when Google fails
-- Privacy-first: No audio files, no cloud storage
-"""
 
 import sys
 import time
