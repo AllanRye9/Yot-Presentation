@@ -1,4 +1,4 @@
-# Yot_Presentation v5.3 🎙️ PowerPoint Voice Controller
+# Yot_Presentation v5.3.1🎙️ PowerPoint Voice Controller
 
 <div align="center">
 
@@ -65,7 +65,7 @@ pip install pywin32 pyautogui SpeechRecognition thefuzz langdetect
 
 ### 2. Run
 ```bash
-python ppt_voice_controller_v53_multilang.py
+python yot_presentation_v5.3.1.py
 ```
 
 ### 3. Speak
@@ -192,7 +192,7 @@ If you say "nxt slid" or "sllide 5", fuzzy logic understands your intent anyway 
 
 ```
 yot-presentation/
-├── ppt_voice_controller_v53_multilang.py   Main application (1,125 lines)
+├── yot_presentation_v5.3.1.py   Main application (1,125 lines)
 ├── verified_commands.py                     Command verification module
 ├── examples_v53.py                          10 working examples
 │
@@ -340,7 +340,7 @@ See [QUICKSTART.md](docs/QUICKSTART.md) for more solutions.
 
 ### Improvements from v5.2
 
-| Feature | v5.2 | v5.3 | Change |
+| Feature | v5.2 | v5.3.1| Change |
 |---------|------|------|--------|
 | Languages | 1 | 8 | ✨ New |
 | Response Time | 60-100ms | 35-55ms | ⚡ 1.5-2x faster |
@@ -389,7 +389,7 @@ Choose from:
 ## 📊 Stats
 
 ```
-Application Code:        1,125 lines (ppt_voice_controller_v53_multilang.py)
+Application Code:        1,125 lines (yot_presentation_v5.3.1.py)
 Classes:                 11 (Language, Config, Detector, etc.)
 Methods:                 60+ (all verified and tested)
 Type Coverage:           100% (full Python type hints)
@@ -434,7 +434,7 @@ MIT License — See [LICENSE](LICENSE) for details
 ## 👥 Credits
 
 **Original Developer:** AllanRye9  
-**v5.3 Enhancement:** PowerPoint Voice Controller Multi-Language Edition
+**v5.3.1Enhancement:** PowerPoint Voice Controller Multi-Language Edition
 
 ### Libraries & Technologies
 
@@ -454,7 +454,7 @@ MIT License — See [LICENSE](LICENSE) for details
 pip install -r requirements.txt
 
 # 2. Run
-python ppt_voice_controller_v53_multilang.py
+python yot_presentation_v5.3.1.py
 
 # 3. Open PowerPoint
 # 4. Speak
@@ -492,7 +492,7 @@ python ppt_voice_controller_v53_multilang.py
 ## 🎯 Next Steps
 
 1. **Install** — Run `pip install -r requirements.txt`
-2. **Try** — Execute `python ppt_voice_controller_v53_multilang.py`
+2. **Try** — Execute `python yot_presentation_v5.3.1.py`
 3. **Explore** — Run `python examples_v53.py` for 10 examples
 4. **Learn** — Read [QUICKSTART.md](docs/QUICKSTART.md)
 5. **Customize** — See [MULTILANG_README.md](docs/MULTILANG_README.md)
@@ -507,6 +507,6 @@ python ppt_voice_controller_v53_multilang.py
 
 [📥 Download](#quick-start-2-minutes) • [📖 Read Docs](#-documentation) • [🚀 Get Started](#-getting-started)
 
-v5.3 — February 2025 — Production Ready ✅
+v5.3.1— February 2025 — Production Ready ✅
 
 </div>
