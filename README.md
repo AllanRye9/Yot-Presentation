@@ -76,7 +76,7 @@ Yot_Presentation is a next-generation, hands-free presentation system that combi
 
 **Quick Start v5.2:**
 ```bash
-python src/powerpoint_voice_controller_v52.py
+python src/yot_presentation_v5.3.py
 ```
 
 ### v5.3: The Human-First Upgrade
@@ -242,7 +242,7 @@ Yot-Presentation/
 │
 ├── src/                           # Source code
 │   ├── yot presentation.py        # Main application (v5.3)
-│   └── powerpoint_voice_controller_v52.py  # v5.2 with training data
+│   └── yot_presentation_v5.3.py  # v5.2 with training data
 ├── docs/                          # Documentation
 │   ├── V52_DOCUMENTATION.md       # v5.2 detailed documentation
 │   └── IMPLEMENTATION_SUMMARY.md  # Implementation details
