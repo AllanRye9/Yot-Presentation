@@ -74,7 +74,7 @@ Yot_Presentation is a next-generation, hands-free presentation system that combi
 
 **[📖 Read the full v5.2 Documentation](docs/V52_DOCUMENTATION.md)**
 
-**Quick Start v5.2:**
+**Quick Start v5.3:**
 ```bash
 python src/yot_presentation_v5.3.py
 ```
@@ -179,7 +179,7 @@ python --version  # Should be 3.8 or higher
 1. **Open PowerPoint** with your presentation
 2. **Run the controller**:
    ```bash
-   python "src/src/v5.3/yot_presentation_v5.3.py"
+   python "src/v5.3/yot_presentation_v5.3.py"
    ```
 3. **Wait for calibration** (1 second background noise adjustment)
 4. **Start speaking** when you see `[SYSTEM ONLINE]` 🟢
