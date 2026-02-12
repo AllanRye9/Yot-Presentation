@@ -40,17 +40,17 @@ Yot_Presentation is a next-generation, hands-free presentation system that combi
 <table>
   <tr>
     <td align="center">
-      <img src="a.jpeg" alt="Interface Screenshot A" width="300"/>
+      <img src="assets/a.jpeg" alt="Interface Screenshot A" width="300"/>
       <br />
       <b>Voice Control Interface</b>
     </td>
     <td align="center">
-      <img src="b.jpeg" alt="Interface Screenshot B" width="300"/>
+      <img src="assets/b.jpeg" alt="Interface Screenshot B" width="300"/>
       <br />
       <b>Command Recognition System</b>
     </td>
     <td align="center">
-      <img src="c.jpeg" alt="Interface Screenshot C" width="300"/>
+      <img src="assets/c.jpeg" alt="Interface Screenshot C" width="300"/>
       <br />
       <b>Presentation Control in Action</b>
     </td>
@@ -72,11 +72,11 @@ Yot_Presentation is a next-generation, hands-free presentation system that combi
 - 🔄 **Smart Fallback**: Works offline with cached text
 - 🔒 **Privacy-First**: No cloud, no servers, complete data control
 
-**[📖 Read the full v5.2 Documentation](V52_DOCUMENTATION.md)**
+**[📖 Read the full v5.2 Documentation](docs/V52_DOCUMENTATION.md)**
 
 **Quick Start v5.2:**
 ```bash
-python powerpoint_voice_controller_v52.py
+python src/powerpoint_voice_controller_v52.py
 ```
 
 ### v5.3: The Human-First Upgrade
@@ -179,7 +179,7 @@ python --version  # Should be 3.8 or higher
 1. **Open PowerPoint** with your presentation
 2. **Run the controller**:
    ```bash
-   python "yot presentation.py"
+   python "src/yot presentation.py"
    ```
 3. **Wait for calibration** (1 second background noise adjustment)
 4. **Start speaking** when you see `[SYSTEM ONLINE]` 🟢
@@ -240,11 +240,26 @@ You: "end show"
 ```
 Yot-Presentation/
 │
-├── yot presentation.py    # Main application file
-├── README.md              # This file
-├── requirements.txt       # Python dependencies (optional)
-└── logs/                  # Auto-generated logs directory
-    └── session_*.log      # Timestamped session logs
+├── src/                           # Source code
+│   ├── yot presentation.py        # Main application (v5.3)
+│   └── powerpoint_voice_controller_v52.py  # v5.2 with training data
+├── docs/                          # Documentation
+│   ├── V52_DOCUMENTATION.md       # v5.2 detailed documentation
+│   └── IMPLEMENTATION_SUMMARY.md  # Implementation details
+├── tests/                         # Test files
+│   ├── test_standalone.py         # Standalone tests
+│   └── test_v52_components.py     # Component tests
+├── examples/                      # Example and demo files
+│   ├── demo_v52.py                # v5.2 feature demo
+│   └── example_v52_usage.py       # Usage examples
+├── assets/                        # Static resources
+│   ├── a.jpeg                     # Screenshot 1
+│   ├── b.jpeg                     # Screenshot 2
+│   └── c.jpeg                     # Screenshot 3
+├── README.md                      # This file
+├── requirements.txt               # Python dependencies
+└── logs/                          # Auto-generated logs directory
+    └── session_*.log              # Timestamped session logs
 ```
 
 ---

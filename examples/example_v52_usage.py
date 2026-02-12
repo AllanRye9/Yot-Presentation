@@ -4,7 +4,12 @@ Example Usage Script for PowerPoint Voice Controller v5.2
 Demonstrates training data collection and export features
 """
 
+import sys
 from pathlib import Path
+
+# Add src directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 from powerpoint_voice_controller_v52 import TrainingDataManager, Config
 
 def example_1_basic_logging():
