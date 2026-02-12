@@ -179,7 +179,7 @@ python --version  # Should be 3.8 or higher
 1. **Open PowerPoint** with your presentation
 2. **Run the controller**:
    ```bash
-   python "src/yot presentation.py"
+   python "src/src/v5.3/yot_presentation_v5.3.py"
    ```
 3. **Wait for calibration** (1 second background noise adjustment)
 4. **Start speaking** when you see `[SYSTEM ONLINE]` 🟢
@@ -241,8 +241,8 @@ You: "end show"
 Yot-Presentation/
 │
 ├── src/                           # Source code
-│   ├── yot presentation.py        # Main application (v5.3)
-│   └── yot_presentation_v5.3.py  # v5.2 with training data
+│   ├── v5.2/yot_presentation_5.2.py    # Main application (v5.3)
+│   └── v5.3/yot_presentation_v5.3.py   # v5.2 with training data
 ├── docs/                          # Documentation
 │   ├── V52_DOCUMENTATION.md       # v5.2 detailed documentation
 │   └── IMPLEMENTATION_SUMMARY.md  # Implementation details
