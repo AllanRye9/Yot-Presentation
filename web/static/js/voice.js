@@ -210,6 +210,10 @@ export class VoiceController {
       }[event.error] || `Speech error: ${event.error}`;
       this.onStatus?.(`⚠️ ${msg}`);
       this._listening = false;
+      // Disable auto-restart for fatal errors that won't resolve without user action
+      if (event.error === 'audio-capture' || event.error === 'not-allowed') {
+        this._shouldRestart = false;
+      }
     };
 
     recog.onend = () => {
@@ -223,7 +227,7 @@ export class VoiceController {
     };
 
     this._recog = recog;
-    this._shouldRestart = false;
+    this._shouldRestart = this.continuous;
     recog.start();
   }
 
