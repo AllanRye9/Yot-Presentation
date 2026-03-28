@@ -34,8 +34,9 @@ DB_PATH = DATA_DIR / "yot_learning.db"
 
 # In-memory file registry: file_id → {filename, total_slides, slides,
 #                                      created_at, thumbnail}
-# NOTE: this resets on restart – mount DATA_DIR as a Docker volume if
-# you need persistence across restarts.
+# NOTE: the file registry is EPHEMERAL — it resets on server/container restart.
+# The ML learning database (yot_learning.db) is PERSISTENT because it is
+# written to DATA_DIR, which is mounted as a Docker named volume.
 _file_registry: dict[str, dict[str, Any]] = {}
 
 ALLOWED_EXTENSIONS = {

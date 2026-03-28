@@ -43,7 +43,7 @@ Instead of remembering rigid voice commands, just speak naturally and the AI und
 ✨ **Web Edition** — Browser-based presenter: upload any file, present anywhere  
 ✨ **🐳 Docker Ready** — One-command deployment with `docker-compose up`  
 ✨ **📁 File Management** — Upload multiple files; switch between presentations instantly  
-✨ **🧠 AI Learning** — Learns from your voice patterns; shows personalised command suggestions  
+✨ **🧠 AI Learning** — Learns from your voice patterns; shows personalized command suggestions  
 
 ---
 
@@ -195,7 +195,7 @@ Navigate to `http://localhost:5000`, upload a file, then use voice commands to n
 | `/api/files/<id>` | GET | Get full slide data for one file |
 | `/api/files/<id>` | DELETE | Remove a file from the library |
 | `/api/learn` | POST | Record a voice command for ML training |
-| `/api/suggestions` | GET | Get personalised command suggestions |
+| `/api/suggestions` | GET | Get personalized command suggestions |
 
 **Example — upload and get file ID:**
 ```bash
@@ -212,7 +212,7 @@ curl -X POST http://localhost:5000/api/command \
 # → {"action": "next_slide", "confidence": 0.95}
 ```
 
-**Example — get personalised suggestions:**
+**Example — get personalized suggestions:**
 ```bash
 curl http://localhost:5000/api/suggestions?limit=5
 # → {"suggestions": [{"command": "next_slide", "count": 47, ...}, ...]}
@@ -250,9 +250,9 @@ Every time you successfully execute a voice command, the app sends a learning si
 
 This is stored in a **SQLite database** (`yot_learning.db`) inside `DATA_DIR`.
 
-### Personalised Suggestions
+### Personalized Suggestions
 
-After each command, the voice bar updates with **AI-personalised suggestion chips** — your most-used commands, ordered by frequency.
+After each command, the voice bar updates with **AI-personalized suggestion chips** — your most-used commands, ordered by frequency.
 
 - Click a chip to execute that command immediately (no microphone needed).
 - Chip counts show how many times you've used each command.
@@ -385,9 +385,9 @@ If you say "nxt slid" or "sllide 5", fuzzy logic understands your intent anyway 
 - One-click switch between presentations
 - Add files from within the presentation view
 
-### 🧠 **ML Learning & Personalisation**
+### 🧠 **ML Learning & Personalization**
 - Records every voice command with confidence and language
-- Frequency-based personalised suggestions
+- Frequency-based personalized suggestions
 - SQLite storage — no external dependencies
 - Real-time suggestion chips in the voice bar
 
@@ -622,7 +622,7 @@ See [QUICKSTART.md](docs/QUICKSTART.md) for more solutions.
 | Docker support | ❌ | ✅ | ✨ New |
 | File management | Single file | Multi-file library | ✨ New |
 | ML learning | ❌ | SQLite frequency model | ✨ New |
-| Personalised suggestions | ❌ | Real-time chips | ✨ New |
+| Personalized suggestions | ❌ | Real-time chips | ✨ New |
 | File switching | ❌ | In-presentation sidebar | ✨ New |
 | API endpoints | 3 | 7 | ✨ Extended |
 | Tests | 41 | 56 | ✨ +15 |
@@ -685,7 +685,7 @@ Choose from:
 - **sqlite3** — ML learning database (built-in)
 
 ### Infrastructure
-- **Docker** — Containerised deployment
+- **Docker** — Containerized deployment
 - **Docker Compose** — Multi-service orchestration
 - **Named volumes** — Persistent ML data storage
 
