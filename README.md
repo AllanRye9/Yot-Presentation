@@ -1,8 +1,8 @@
-# Yot_Presentation v5.3.1🎙️ PowerPoint Voice Controller
+# Yot_Presentation v5.3.1 🎙️ PowerPoint Voice Controller
 
 <div align="center">
 
-**Control PowerPoint presentations hands-free with natural voice commands—now in 8 languages**
+**Control presentations hands-free with natural voice commands — desktop or browser, in 8 languages**
 
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg?style=flat-square)](https://www.python.org/)
 [![Windows](https://img.shields.io/badge/Windows-10%2B-0078d4.svg?style=flat-square)](https://www.microsoft.com/windows)
@@ -12,7 +12,7 @@
 
 ### Never touch your mouse during a presentation again
 
-[Quick Start](#-quick-start) • [Commands](#-voice-commands) • [Languages](#-8-languages-supported) • [Features](#-core-features) • [Docs](#-documentation)
+[Quick Start](#-quick-start) • [Web App](#-web-application) • [Commands](#-voice-commands) • [Languages](#-8-languages-supported) • [Features](#-core-features) • [Docs](#-documentation)
 
 </div>
 
@@ -20,7 +20,10 @@
 
 ## 🌟 What is Yot_Presentation?
 
-Yot_Presentation is an **intelligent voice control system** for Microsoft PowerPoint that lets you navigate presentations using natural language commands—in 8 different languages. 
+Yot_Presentation is an **intelligent voice control system** that lets you navigate presentations using natural language commands — in 8 different languages. It comes in two flavors:
+
+- **Desktop app** (`src/v5.3.1/`) — Controls Microsoft PowerPoint directly via COM automation on Windows.
+- **Web app** (`web/`) — Upload any document (PDF, Word, Excel, images, text) and present it in your browser with the same voice commands, on any platform.
 
 Instead of remembering rigid voice commands, just speak naturally and the AI understands your intent. Whether you say "next slide," "go forward," or "siguiente," it works the same way.
 
@@ -36,6 +39,7 @@ Instead of remembering rigid voice commands, just speak naturally and the AI und
 ✨ **All Commands Verified** — 16 tested commands, 72+ pattern variations  
 ✨ **Real-Time Monitoring** — Live performance dashboard and analytics  
 ✨ **Smart Fallback** — Works offline with intelligent caching  
+✨ **Web Edition** — Browser-based presenter: upload any file, present anywhere  
 
 ---
 
@@ -58,17 +62,19 @@ Instead of remembering rigid voice commands, just speak naturally and the AI und
 
 ## 🚀 Quick Start (2 Minutes)
 
-### 1. Install Dependencies
+### Desktop App (Windows + PowerPoint)
+
+#### 1. Install Dependencies
 ```bash
 pip install pywin32 pyautogui SpeechRecognition thefuzz langdetect
 ```
 
-### 2. Run
+#### 2. Run
 ```bash
-python yot_presentation_v5.3.1.py
+python src/v5.3.1/yot_presentation_v5.3.1.py
 ```
 
-### 3. Speak
+#### 3. Speak
 Open any PowerPoint presentation and start speaking:
 - "Next slide" → Advances to next slide
 - "Go back" → Returns to previous slide
@@ -76,6 +82,55 @@ Open any PowerPoint presentation and start speaking:
 - "Exit" → Closes the application
 
 That's it! No configuration needed.
+
+---
+
+## 🌐 Web Application
+
+The web edition lets you **upload any document or image and present it in your browser** — no PowerPoint, no Windows required.
+
+### Supported File Types
+- **PDF** — each page becomes a slide
+- **Word** (`.docx`, `.doc`) — sections split on Heading 1
+- **Excel** (`.xlsx`, `.xls`) — each sheet becomes a table slide
+- **Text** (`.txt`) — paragraphs split on blank lines
+- **Images** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.webp`) — displayed as image slides
+
+### Web App Quick Start
+
+#### 1. Install Web Dependencies
+```bash
+pip install flask PyMuPDF python-docx openpyxl Pillow
+```
+
+Or use the web requirements file:
+```bash
+pip install -r web/requirements.txt
+```
+
+#### 2. Run the Web Server
+```bash
+python web/app.py
+```
+
+#### 3. Open in Browser
+Navigate to `http://localhost:5000`, upload a file, then use voice commands to navigate.
+
+### Web API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Presentation UI |
+| `/upload` | POST | Upload a file and convert to slides |
+| `/api/command` | POST | Process a voice-command transcript |
+
+**Example — process a voice command:**
+```bash
+curl -X POST http://localhost:5000/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"text": "next slide"}'
+# → {"action": "next_slide", "confidence": 0.95}
+```
 
 ---
 
@@ -88,6 +143,8 @@ That's it! No configuration needed.
 | **Next** | "next", "forward", "go forward", "advance" | Move to next slide |
 | **Back** | "previous", "back", "go back", "return" | Move to previous slide |
 | **Jump** | "slide 5", "go to 10", "jump to 3" | Jump to specific slide |
+| **First** | "first slide", "go to start", "beginning" | Jump to first slide |
+| **Last** | "last slide", "final slide" | Jump to last slide |
 
 ### Presentation Control
 
@@ -96,6 +153,7 @@ That's it! No configuration needed.
 | **Start** | "start", "begin", "present" | Start slideshow (F5) |
 | **End** | "end", "stop", "exit" | End slideshow (ESC) |
 | **Blackout** | "black screen", "blackout" | Toggle black screen (B) |
+| **Fullscreen** | "fullscreen", "full screen" | Toggle fullscreen |
 
 ### Editing (Edit Mode Only)
 
@@ -192,28 +250,46 @@ If you say "nxt slid" or "sllide 5", fuzzy logic understands your intent anyway 
 
 ```
 yot-presentation/
-├── yot_presentation_v5.3.1.py   Main application (1,125 lines)
-├── verified_commands.py                     Command verification module
-├── examples_v53.py                          10 working examples
+├── src/
+│   ├── v5.3.1/
+│   │   └── yot_presentation_v5.3.1.py   Desktop app — main application (1,125 lines)
+│   ├── v5.3/
+│   │   └── yot_presentation_v5.3.py     Previous desktop version
+│   └── v5.2/
+│       └── yot_presentation_v5.2.py     Legacy desktop version
+│
+├── web/
+│   ├── app.py                           Flask web application
+│   ├── requirements.txt                 Web app dependencies
+│   ├── templates/
+│   │   └── index.html                   Presentation UI
+│   └── static/
+│       ├── css/
+│       └── js/
+│
+├── examples/
+│   ├── examples_v53.1.py                10 working configuration examples
+│   ├── demo_v52.py                      v5.2 demo
+│   └── example_v52_usage.py             v5.2 usage examples
+│
+├── tests/
+│   ├── test_web_app.py                  Web app tests (pytest)
+│   ├── test_standalone.py               Standalone component tests
+│   └── test_v52_components.py           v5.2 component tests
 │
 ├── docs/
-│   ├── README.md                           This file
-│   ├── QUICKSTART.md                       5-minute setup guide
-│   ├── COMMAND_VERIFICATION.md             Detailed testing info
-│   ├── MULTILANG_README.md                 Complete reference
-│   ├── FEATURE_MATRIX.md                   Technical deep-dive
-│   └── COMPARISON_v52_vs_v53.md           Upgrade guide
+│   ├── QUICKSTART.md                    5-minute setup guide
+│   ├── COMMAND_VERIFICATION.md          Detailed testing info
+│   ├── MULTILANG_README.md              Complete feature reference
+│   ├── FEATURE_MATRIX.md               Technical deep-dive
+│   ├── COMPARISON_v52_vs_v53.md        Upgrade guide
+│   ├── verified_commands.py             Command verification module
+│   └── examples_v53.py                  Documentation examples
 │
-├── training_data/                          Auto-generated
-│   ├── training_data_v53.db               SQLite database
-│   ├── training_data_v53.jsonl            JSON lines export
-│   └── archives/                           Compressed backups
+├── assets/                              Demo images
 │
-├── logs/                                    Auto-generated
-│   └── ppt_v53_YYYYMMDD.log              Session logs
-│
-├── requirements.txt                        Dependencies
-└── LICENSE                                 MIT License
+├── requirements.txt                     Desktop app dependencies
+└── LICENSE                              MIT License
 ```
 
 ---
@@ -312,7 +388,7 @@ See [MULTILANG_README.md](docs/MULTILANG_README.md) for complete parameter list.
 1. Disable auto-detection: `AUTO_DETECT_LANGUAGE=False`
 2. Use single language mode
 3. Check for background processes
-4. Monitor performance with Example 7
+4. Monitor performance with Example 7 in `examples/examples_v53.1.py`
 
 ### Jump Slide Not Working
 **Important:** Jump slide only works in slideshow mode!
@@ -354,10 +430,10 @@ See [QUICKSTART.md](docs/QUICKSTART.md) for more solutions.
 
 ## 🎓 10 Working Examples
 
-The `examples_v53.py` file includes 10 ready-to-run examples:
+The `examples/examples_v53.1.py` file includes 10 ready-to-run examples:
 
 ```bash
-python examples_v53.py
+python examples/examples_v53.1.py
 ```
 
 Choose from:
@@ -376,6 +452,7 @@ Choose from:
 
 ## 🛠️ Technical Stack
 
+### Desktop App
 - **SpeechRecognition** — Google Web Speech API
 - **langdetect** — Automatic language detection
 - **pywin32** — PowerPoint COM automation
@@ -384,18 +461,32 @@ Choose from:
 - **sqlite3** — Training data storage
 - **concurrent.futures** — Parallel processing
 
+### Web App
+- **Flask** — Web server and REST API
+- **PyMuPDF** — PDF-to-image rendering
+- **python-docx** — Word document parsing
+- **openpyxl** — Excel spreadsheet parsing
+- **Pillow** — Image processing
+
 ---
 
 ## 📊 Stats
 
 ```
-Application Code:        1,125 lines (yot_presentation_v5.3.1.py)
-Classes:                 11 (Language, Config, Detector, etc.)
-Methods:                 60+ (all verified and tested)
-Type Coverage:           100% (full Python type hints)
+Desktop Application:
+  Code:                  1,125 lines (src/v5.3.1/yot_presentation_v5.3.1.py)
+  Classes:               11 (Language, Config, Detector, etc.)
+  Methods:               60+ (all verified and tested)
+  Type Coverage:         100% (full Python type hints)
+
+Web Application:
+  Code:                  ~475 lines (web/app.py)
+  Supported File Types:  12 (PDF, DOCX, DOC, XLSX, XLS, TXT, PNG, JPG, JPEG, GIF, BMP, WebP)
+  REST Endpoints:        3 (/, /upload, /api/command)
+  Tests:                 40+ (tests/test_web_app.py)
 
 Languages:               8 (English, Spanish, French, German, Italian, Portuguese, Chinese, Japanese)
-Commands:                16 (9 core + 7 bonus)
+Commands:                16+ (9 core + 7 bonus + fullscreen/first/last)
 Pattern Variations:      72+ (multiple ways to say each command)
 Configuration Options:   26 (tunable parameters)
 
@@ -434,7 +525,7 @@ MIT License — See [LICENSE](LICENSE) for details
 ## 👥 Credits
 
 **Original Developer:** AllanRye9  
-**v5.3.1Enhancement:** PowerPoint Voice Controller Multi-Language Edition
+**v5.3.1 Enhancement:** PowerPoint Voice Controller Multi-Language Edition
 
 ### Libraries & Technologies
 
@@ -447,19 +538,28 @@ MIT License — See [LICENSE](LICENSE) for details
 
 ## 🚀 Getting Started
 
-**New to Yot_Presentation?** Start here:
+**Desktop app (Windows + PowerPoint):**
 
 ```bash
 # 1. Install
 pip install -r requirements.txt
 
 # 2. Run
-python yot_presentation_v5.3.1.py
+python src/v5.3.1/yot_presentation_v5.3.1.py
 
-# 3. Open PowerPoint
-# 4. Speak
+# 3. Open PowerPoint and speak
+```
 
-# That's it! No configuration needed.
+**Web app (any platform):**
+
+```bash
+# 1. Install
+pip install -r web/requirements.txt
+
+# 2. Run
+python web/app.py
+
+# 3. Open http://localhost:5000, upload a file, and speak
 ```
 
 **Want more?** See [QUICKSTART.md](docs/QUICKSTART.md) for detailed setup.
@@ -473,7 +573,7 @@ python yot_presentation_v5.3.1.py
 - 📖 **Documentation** — See `docs/` folder
 - 🐛 **Bug Reports** — Use GitHub Issues
 - 💬 **Questions** — Start a Discussion
-- 📚 **Examples** — Run `python examples_v53.py`
+- 📚 **Examples** — Run `python examples/examples_v53.1.py`
 
 ---
 
@@ -491,9 +591,9 @@ python yot_presentation_v5.3.1.py
 
 ## 🎯 Next Steps
 
-1. **Install** — Run `pip install -r requirements.txt`
-2. **Try** — Execute `python yot_presentation_v5.3.1.py`
-3. **Explore** — Run `python examples_v53.py` for 10 examples
+1. **Install** — Run `pip install -r requirements.txt` (desktop) or `pip install -r web/requirements.txt` (web)
+2. **Try** — Execute `python src/v5.3.1/yot_presentation_v5.3.1.py` or `python web/app.py`
+3. **Explore** — Run `python examples/examples_v53.1.py` for 10 examples
 4. **Learn** — Read [QUICKSTART.md](docs/QUICKSTART.md)
 5. **Customize** — See [MULTILANG_README.md](docs/MULTILANG_README.md)
 
@@ -505,8 +605,8 @@ python yot_presentation_v5.3.1.py
 
 **⭐ Star this project if it helps you!**
 
-[📥 Download](#quick-start-2-minutes) • [📖 Read Docs](#-documentation) • [🚀 Get Started](#-getting-started)
+[📥 Download](#-quick-start) • [🌐 Web App](#-web-application) • [📖 Read Docs](#-documentation) • [🚀 Get Started](#-getting-started)
 
-v5.3.1— February 2025 — Production Ready ✅
+v5.3.1 — February 2025 — Production Ready ✅
 
 </div>
