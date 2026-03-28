@@ -1,0 +1,24 @@
+[project]
+name = "yot-presentation"
+version = "5.4.0"
+description = "AI-powered, voice-controlled web presentation viewer"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=2.3.0",
+    "PyMuPDF>=1.23.0",
+    "python-docx>=1.0.0",
+    "openpyxl>=3.1.0",
+    "Pillow>=10.0.0",
+]
+
+[project.scripts]
+# Allows `python -m yot_presentation` and lets platforms find the entrypoint
+app = "web.app:app"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["web*"]

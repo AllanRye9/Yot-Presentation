@@ -7,6 +7,10 @@
  *  - VoiceController    (Web Speech API, mirrors original v5.3.1 commands)
  *  - File management system (multi-file library, switch / delete)
  *  - ML learning        (records command usage, renders suggestion chips)
+ *  - Landscape / portrait toggle
+ *  - Colour theme selection
+ *  - Read Aloud (Text-to-Speech) with voice, speed, and language options
+ *  - AI slide analysis  (keyword extraction, summary, sentiment, reading time)
  */
 
 import { VoiceController } from './voice.js';
@@ -48,10 +52,30 @@ const $libSidebarList    = document.getElementById('lib-sidebar-list');
 const $fileLibraryList   = document.getElementById('file-library-list');
 const $fileLibraryEmpty  = document.getElementById('file-library-empty');
 const $suggestionChips   = document.getElementById('suggestion-chips');
+const $slideStage        = document.getElementById('slide-stage');
+
+// New feature DOM refs
+const $btnLandscape      = document.getElementById('btn-landscape');
+const $btnTheme          = document.getElementById('btn-theme');
+const $themePicker       = document.getElementById('theme-picker');
+const $btnReadAloud      = document.getElementById('btn-read-aloud');
+const $ttsPanel          = document.getElementById('tts-panel');
+const $ttsVoiceSelect    = document.getElementById('tts-voice-select');
+const $ttsRate           = document.getElementById('tts-rate');
+const $ttsRateLabel      = document.getElementById('tts-rate-label');
+const $ttsLangSelect     = document.getElementById('tts-lang-select');
+const $btnTtsPlay        = document.getElementById('btn-tts-play');
+const $btnTtsStop        = document.getElementById('btn-tts-stop');
+const $btnAi             = document.getElementById('btn-ai');
+const $aiPanel           = document.getElementById('ai-panel');
+const $btnAiAnalyze      = document.getElementById('btn-ai-analyze');
+const $btnAiClose        = document.getElementById('btn-ai-close');
+const $aiResults         = document.getElementById('ai-results');
 
 // ─── state ───────────────────────────────────────────────────────────────
 let _currentFileId = null;    // UUID of the currently-presented file
 let _currentLang   = 'en';    // selected recognition language
+let _isPortrait    = false;   // landscape (16:9) by default
 
 // ─── core instances ──────────────────────────────────────────────────────
 const viewer = new PresentationViewer({
@@ -272,6 +296,213 @@ $btnFiles.addEventListener('click', () => {
   if (!$fileSidebar.classList.contains('hidden')) refreshLibrarySidebar();
 });
 
+// ─── landscape / portrait toggle ─────────────────────────────────────────
+
+$btnLandscape.addEventListener('click', () => {
+  _isPortrait = !_isPortrait;
+  $slideStage.classList.toggle('portrait', _isPortrait);
+  $btnLandscape.classList.toggle('active', _isPortrait);
+  $btnLandscape.classList.toggle('portrait', _isPortrait);
+  $btnLandscape.title = _isPortrait
+    ? 'Switch to landscape (16:9)'
+    : 'Switch to portrait (4:3)';
+});
+
+// ─── colour theme ─────────────────────────────────────────────────────────
+
+let _currentTheme = 'dark';
+
+$btnTheme.addEventListener('click', (e) => {
+  e.stopPropagation();
+  $themePicker.classList.toggle('hidden');
+});
+
+// Close theme picker when clicking outside
+document.addEventListener('click', (e) => {
+  if (!$themePicker.contains(e.target) && e.target !== $btnTheme) {
+    $themePicker.classList.add('hidden');
+  }
+});
+
+$themePicker.querySelectorAll('.theme-swatch').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const theme = btn.dataset.theme;
+    applyTheme(theme);
+    $themePicker.classList.add('hidden');
+  });
+});
+
+function applyTheme(theme) {
+  _currentTheme = theme;
+  // 'dark' is the default (:root), so remove data-theme for it
+  if (theme === 'dark') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  // update active swatch
+  $themePicker.querySelectorAll('.theme-swatch').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme);
+  });
+  $btnTheme.classList.toggle('active', theme !== 'dark');
+  // persist choice
+  try { localStorage.setItem('yot-theme', theme); } catch (_) {}
+}
+
+// Restore saved theme
+try {
+  const saved = localStorage.getItem('yot-theme');
+  if (saved) applyTheme(saved);
+} catch (_) {}
+
+// ─── Read Aloud (TTS) ─────────────────────────────────────────────────────
+
+let _ttsSpeaking = false;
+
+// Populate voice list once available
+function populateTtsVoices() {
+  const voices = window.speechSynthesis?.getVoices() || [];
+  if (!voices.length) return;
+  $ttsVoiceSelect.innerHTML = '<option value="">Default voice</option>';
+  voices.forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${v.name} (${v.lang})`;
+    $ttsVoiceSelect.appendChild(opt);
+  });
+}
+
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = populateTtsVoices;
+  populateTtsVoices();
+}
+
+$btnReadAloud.addEventListener('click', () => {
+  $ttsPanel.classList.toggle('hidden');
+  $btnReadAloud.classList.toggle('active', !$ttsPanel.classList.contains('hidden'));
+});
+
+$ttsRate.addEventListener('input', () => {
+  $ttsRateLabel.textContent = `${parseFloat($ttsRate.value).toFixed(1)}×`;
+});
+
+$btnTtsPlay.addEventListener('click', () => readCurrentSlideAloud());
+$btnTtsStop.addEventListener('click', () => {
+  window.speechSynthesis?.cancel();
+  _ttsSpeaking = false;
+  $btnTtsPlay.textContent = '▶ Read Slide';
+});
+
+function readCurrentSlideAloud() {
+  if (!window.speechSynthesis) {
+    showError('Text-to-speech is not supported in this browser.');
+    return;
+  }
+  window.speechSynthesis.cancel();
+
+  const text = viewer.getCurrentSlideText();
+  if (!text) { showError('No text content to read on this slide.'); return; }
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = parseFloat($ttsRate.value);
+
+  // Voice selection
+  const voiceIdx = parseInt($ttsVoiceSelect.value, 10);
+  if (!isNaN(voiceIdx)) {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices[voiceIdx]) utterance.voice = voices[voiceIdx];
+  }
+
+  // Language override
+  const langOverride = $ttsLangSelect.value;
+  if (langOverride) utterance.lang = langOverride;
+
+  utterance.onstart = () => {
+    _ttsSpeaking = true;
+    $btnTtsPlay.textContent = '⏸ Reading…';
+  };
+  utterance.onend = () => {
+    _ttsSpeaking = false;
+    $btnTtsPlay.textContent = '▶ Read Slide';
+  };
+  utterance.onerror = () => {
+    _ttsSpeaking = false;
+    $btnTtsPlay.textContent = '▶ Read Slide';
+  };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// ─── AI analysis ──────────────────────────────────────────────────────────
+
+$btnAi.addEventListener('click', () => {
+  $aiPanel.classList.toggle('hidden');
+  $btnAi.classList.toggle('active', !$aiPanel.classList.contains('hidden'));
+});
+
+$btnAiClose.addEventListener('click', () => {
+  $aiPanel.classList.add('hidden');
+  $btnAi.classList.remove('active');
+});
+
+$btnAiAnalyze.addEventListener('click', () => analyzeCurrentSlide());
+
+async function analyzeCurrentSlide() {
+  const text = viewer.getCurrentSlideText();
+  if (!text) {
+    $aiResults.innerHTML = '<span style="color:var(--text2)">No text content on this slide to analyse.</span>';
+    return;
+  }
+
+  $aiResults.innerHTML = '<span style="color:var(--text2)">🔄 Analysing…</span>';
+
+  try {
+    const res  = await fetch('/api/ai/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Analysis failed');
+    renderAiResults(data);
+  } catch (err) {
+    $aiResults.innerHTML = `<span style="color:var(--danger)">Error: ${_esc(err.message)}</span>`;
+  }
+}
+
+function renderAiResults(data) {
+  const sentimentClass = `ai-sentiment-${data.sentiment}`;
+  const sentimentEmoji = data.sentiment === 'positive' ? '😊' : data.sentiment === 'negative' ? '😟' : '😐';
+
+  const keywordsHtml = (data.keywords || []).map(kw =>
+    `<span class="ai-keyword">${_esc(kw.word)}<span class="kw-score">${(kw.score * 100).toFixed(0)}%</span></span>`
+  ).join('');
+
+  $aiResults.innerHTML = `
+    <div>
+      <div class="ai-section-title">Keywords</div>
+      <div class="ai-keywords">${keywordsHtml || '<em>—</em>'}</div>
+    </div>
+    <div>
+      <div class="ai-section-title">Summary</div>
+      <div class="ai-summary">${_esc(data.summary || '—')}</div>
+    </div>
+    <div class="ai-meta">
+      <div class="ai-meta-item">
+        <span class="ai-meta-value ${sentimentClass}">${sentimentEmoji} ${_esc(data.sentiment)}</span>
+        <span class="ai-meta-label">Sentiment</span>
+      </div>
+      <div class="ai-meta-item">
+        <span class="ai-meta-value">${data.word_count}</span>
+        <span class="ai-meta-label">Words</span>
+      </div>
+      <div class="ai-meta-item">
+        <span class="ai-meta-value">${data.reading_time_seconds}s</span>
+        <span class="ai-meta-label">Read time</span>
+      </div>
+    </div>`;
+}
+
 // ─── ML learning & suggestions ────────────────────────────────────────────
 
 async function sendLearnSignal(command, text, confidence) {
@@ -464,3 +695,4 @@ function _esc(str) {
 // ─── initialise ───────────────────────────────────────────────────────────
 // Load the file library on the upload screen when the page first opens
 refreshLibraryUploadScreen();
+
