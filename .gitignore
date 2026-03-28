@@ -50,3 +50,7 @@ training_data/exports/
 # Temporary files
 *.tmp
 .tmp/
+
+# Web app – uploaded files and generated caches
+web/uploads/
+web/.env
