@@ -353,3 +353,153 @@ class TestFlaskRoutes:
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data["action"] == "unknown"
+
+
+# ─── file management API ─────────────────────────────────────────────────
+
+
+class TestFileManagement:
+    """Tests for /api/files endpoints (file registry)."""
+
+    def _upload_txt(self, client, content=b"Hello\n\nWorld", name="test.txt"):
+        return client.post(
+            "/upload",
+            data={"file": (io.BytesIO(content), name)},
+            content_type="multipart/form-data",
+        )
+
+    def test_upload_returns_file_id(self, client):
+        resp = self._upload_txt(client)
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "file_id" in data
+        assert len(data["file_id"]) == 36  # UUID format
+
+    def test_list_files_empty_initially(self, client):
+        resp = client.get("/api/files")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "files" in data
+        assert isinstance(data["files"], list)
+
+    def test_upload_appears_in_file_list(self, client):
+        upload = self._upload_txt(client, name="slides.txt")
+        file_id = json.loads(upload.data)["file_id"]
+
+        resp = client.get("/api/files")
+        data = json.loads(resp.data)
+        ids = [f["id"] for f in data["files"]]
+        assert file_id in ids
+
+    def test_get_file_by_id(self, client):
+        upload = self._upload_txt(client, name="doc.txt")
+        file_id = json.loads(upload.data)["file_id"]
+
+        resp = client.get(f"/api/files/{file_id}")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["file_id"] == file_id
+        assert data["filename"] == "doc.txt"
+        assert "slides" in data
+
+    def test_get_nonexistent_file_404(self, client):
+        resp = client.get("/api/files/00000000-0000-0000-0000-000000000000")
+        assert resp.status_code == 404
+
+    def test_delete_file(self, client):
+        upload = self._upload_txt(client)
+        file_id = json.loads(upload.data)["file_id"]
+
+        del_resp = client.delete(f"/api/files/{file_id}")
+        assert del_resp.status_code == 200
+
+        # file should no longer appear in the list
+        list_resp = client.get("/api/files")
+        ids = [f["id"] for f in json.loads(list_resp.data)["files"]]
+        assert file_id not in ids
+
+    def test_delete_nonexistent_file_404(self, client):
+        resp = client.delete("/api/files/00000000-0000-0000-0000-000000000000")
+        assert resp.status_code == 404
+
+    def test_file_metadata_fields(self, client):
+        upload = self._upload_txt(client, name="meta.txt")
+        file_id = json.loads(upload.data)["file_id"]
+
+        resp = client.get("/api/files")
+        data = json.loads(resp.data)
+        entry = next(f for f in data["files"] if f["id"] == file_id)
+        assert "filename" in entry
+        assert "total_slides" in entry
+        assert "created_at" in entry
+        assert "thumbnail" in entry
+
+
+# ─── ML learning API ─────────────────────────────────────────────────────
+
+
+class TestMLLearning:
+    """Tests for /api/learn and /api/suggestions endpoints."""
+
+    def _learn(self, client, command="next_slide", text="next", lang="en", confidence=0.95):
+        return client.post(
+            "/api/learn",
+            data=json.dumps({"command": command, "text": text, "lang": lang, "confidence": confidence}),
+            content_type="application/json",
+        )
+
+    def test_learn_valid_command(self, client):
+        resp = self._learn(client)
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data.get("success") is True
+
+    def test_learn_unknown_command_rejected(self, client):
+        resp = self._learn(client, command="unknown")
+        assert resp.status_code == 400
+
+    def test_learn_empty_command_rejected(self, client):
+        resp = client.post(
+            "/api/learn",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_suggestions_returns_list(self, client):
+        # seed some commands
+        self._learn(client, command="next_slide")
+        self._learn(client, command="next_slide")
+        self._learn(client, command="prev_slide")
+
+        resp = client.get("/api/suggestions")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "suggestions" in data
+        assert isinstance(data["suggestions"], list)
+
+    def test_suggestions_sorted_by_frequency(self, client):
+        # seed: next_slide ×3, prev_slide ×1
+        for _ in range(3):
+            self._learn(client, command="next_slide")
+        self._learn(client, command="prev_slide")
+
+        data = json.loads(client.get("/api/suggestions").data)
+        top = data["suggestions"][0]["command"]
+        assert top == "next_slide"
+
+    def test_suggestions_limit_param(self, client):
+        for cmd in ["next_slide", "prev_slide", "zoom_in", "zoom_out", "blackout", "fullscreen"]:
+            self._learn(client, command=cmd)
+        data = json.loads(client.get("/api/suggestions?limit=3").data)
+        assert len(data["suggestions"]) <= 3
+
+    def test_suggestion_has_required_fields(self, client):
+        self._learn(client)
+        data = json.loads(client.get("/api/suggestions").data)
+        if data["suggestions"]:
+            s = data["suggestions"][0]
+            assert "command" in s
+            assert "count" in s
+            assert "avg_confidence" in s
+            assert "last_used" in s
