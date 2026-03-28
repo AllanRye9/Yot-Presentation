@@ -14,7 +14,16 @@ import pytest
 
 # Allow importing from web/
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from web.app import app, match_command, convert_text, convert_image
+from web.app import (
+    app,
+    match_command,
+    convert_text,
+    convert_image,
+    _extract_keywords,
+    _extractive_summary,
+    _simple_sentiment,
+    _estimate_reading_time,
+)
 
 
 # ─── fixtures ────────────────────────────────────────────────────────────
@@ -503,3 +512,171 @@ class TestMLLearning:
             assert "count" in s
             assert "avg_confidence" in s
             assert "last_used" in s
+
+
+# ─── AI analysis helpers ──────────────────────────────────────────────────
+
+
+class TestAIHelpers:
+    """Unit tests for the AI text-analysis helper functions."""
+
+    _TEXT = (
+        "Machine learning is a powerful technology that improves performance. "
+        "AI systems can analyze data and make intelligent decisions. "
+        "This leads to significant improvements and great business growth."
+    )
+
+    def test_extract_keywords_returns_list(self):
+        kws = _extract_keywords(self._TEXT)
+        assert isinstance(kws, list)
+        assert len(kws) > 0
+
+    def test_extract_keywords_has_word_and_score(self):
+        kws = _extract_keywords(self._TEXT, top_n=3)
+        for kw in kws:
+            assert "word" in kw
+            assert "score" in kw
+            assert 0.0 <= kw["score"] <= 1.0
+
+    def test_extract_keywords_top_n_respected(self):
+        kws = _extract_keywords(self._TEXT, top_n=4)
+        assert len(kws) <= 4
+
+    def test_extract_keywords_empty_text(self):
+        kws = _extract_keywords("")
+        assert kws == []
+
+    def test_extractive_summary_shorter_than_original(self):
+        long_text = (self._TEXT + " ") * 5  # repeat to create more sentences
+        summary = _extractive_summary(long_text, num_sentences=2)
+        assert len(summary) < len(long_text)
+
+    def test_extractive_summary_non_empty(self):
+        summary = _extractive_summary(self._TEXT)
+        assert len(summary) > 0
+
+    def test_extractive_summary_short_text_unchanged(self):
+        short = "Hello world."
+        summary = _extractive_summary(short, num_sentences=3)
+        assert summary  # non-empty
+
+    def test_sentiment_positive(self):
+        assert _simple_sentiment("great success excellent improvement") == "positive"
+
+    def test_sentiment_negative(self):
+        assert _simple_sentiment("bad failure problem risk danger decline") == "negative"
+
+    def test_sentiment_neutral(self):
+        assert _simple_sentiment("the cat sat on the mat") == "neutral"
+
+    def test_reading_time_positive(self):
+        t = _estimate_reading_time(self._TEXT)
+        assert t >= 1
+
+    def test_reading_time_scales_with_length(self):
+        short = "Hello world."
+        long = (self._TEXT + " ") * 20
+        assert _estimate_reading_time(long) > _estimate_reading_time(short)
+
+
+# ─── AI analysis API route ────────────────────────────────────────────────
+
+
+class TestAIRoute:
+    """Tests for the /api/ai/analyze Flask endpoint."""
+
+    def test_analyze_valid_text(self, client):
+        resp = client.post(
+            "/api/ai/analyze",
+            data=json.dumps({"text": "Machine learning improves technology performance."}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "keywords" in data
+        assert "summary" in data
+        assert "sentiment" in data
+        assert "reading_time_seconds" in data
+        assert "word_count" in data
+
+    def test_analyze_required_response_fields(self, client):
+        resp = client.post(
+            "/api/ai/analyze",
+            data=json.dumps({"text": "Great success in AI and machine learning."}),
+            content_type="application/json",
+        )
+        data = json.loads(resp.data)
+        assert isinstance(data["keywords"], list)
+        assert isinstance(data["summary"], str)
+        assert data["sentiment"] in ("positive", "negative", "neutral")
+        assert isinstance(data["reading_time_seconds"], int)
+        assert isinstance(data["word_count"], int)
+
+    def test_analyze_empty_text_returns_400(self, client):
+        resp = client.post(
+            "/api/ai/analyze",
+            data=json.dumps({"text": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+    def test_analyze_missing_text_returns_400(self, client):
+        resp = client.post(
+            "/api/ai/analyze",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_analyze_word_count_correct(self, client):
+        text = "one two three four five"
+        resp = client.post(
+            "/api/ai/analyze",
+            data=json.dumps({"text": text}),
+            content_type="application/json",
+        )
+        data = json.loads(resp.data)
+        assert data["word_count"] == 5
+
+    def test_analyze_positive_sentiment(self, client):
+        resp = client.post(
+            "/api/ai/analyze",
+            data=json.dumps({"text": "Excellent performance and great success achieved."}),
+            content_type="application/json",
+        )
+        data = json.loads(resp.data)
+        assert data["sentiment"] == "positive"
+
+    def test_analyze_negative_sentiment(self, client):
+        resp = client.post(
+            "/api/ai/analyze",
+            data=json.dumps({"text": "Bad failure and serious risk problem encountered."}),
+            content_type="application/json",
+        )
+        data = json.loads(resp.data)
+        assert data["sentiment"] == "negative"
+
+
+# ─── root entrypoint ─────────────────────────────────────────────────────
+
+
+class TestRootEntrypoint:
+    """Smoke test for the root-level app.py entrypoint."""
+
+    def test_root_entrypoint_imports_flask_app(self):
+        import importlib.util
+        from pathlib import Path
+
+        spec = importlib.util.spec_from_file_location(
+            "root_app",
+            Path(__file__).resolve().parents[1] / "app.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # The module must expose a Flask 'app' object
+        assert hasattr(module, "app")
+        from flask import Flask
+        assert isinstance(module.app, Flask)
+

@@ -662,6 +662,114 @@ def process_command():
     return jsonify(result)
 
 
+# ─── AI text analysis ─────────────────────────────────────────────────────
+
+
+def _tokenize(text: str) -> list[str]:
+    """Return a list of lowercase alphabetic tokens, filtering stopwords."""
+    _STOPWORDS = {
+        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to",
+        "for", "of", "with", "by", "from", "is", "are", "was", "were",
+        "be", "been", "being", "have", "has", "had", "do", "does", "did",
+        "will", "would", "shall", "should", "may", "might", "must", "can",
+        "could", "this", "that", "these", "those", "it", "its", "as", "if",
+        "not", "no", "so", "than", "then", "when", "where", "which", "who",
+        "what", "how", "all", "each", "more", "also", "about", "up", "out",
+        "into", "over", "after", "before", "i", "we", "you", "he", "she",
+        "they", "their", "our", "your", "his", "her", "my",
+    }
+    tokens = re.findall(r"[a-z]{3,}", text.lower())
+    return [t for t in tokens if t not in _STOPWORDS]
+
+
+def _extract_keywords(text: str, top_n: int = 8) -> list[dict[str, Any]]:
+    """Return the top-N most frequent content words with normalised scores."""
+    tokens = _tokenize(text)
+    if not tokens:
+        return []
+    freq: dict[str, int] = {}
+    for tok in tokens:
+        freq[tok] = freq.get(tok, 0) + 1
+    max_freq = max(freq.values())
+    ranked = sorted(freq.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    return [{"word": w, "score": round(c / max_freq, 3)} for w, c in ranked]
+
+
+def _extractive_summary(text: str, num_sentences: int = 3) -> str:
+    """Simple frequency-based extractive summarization."""
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if len(s.strip()) > 20]
+    if not sentences:
+        return text[:300] if text else ""
+    if len(sentences) <= num_sentences:
+        return " ".join(sentences)
+
+    tokens = _tokenize(text)
+    freq: dict[str, int] = {}
+    for tok in tokens:
+        freq[tok] = freq.get(tok, 0) + 1
+
+    def score_sentence(s: str) -> float:
+        words = _tokenize(s)
+        return sum(freq.get(w, 0) for w in words) / max(len(words), 1)
+
+    ranked = sorted(sentences, key=score_sentence, reverse=True)[:num_sentences]
+    # Preserve original order
+    ordered = [s for s in sentences if s in ranked]
+    return " ".join(ordered)
+
+
+def _estimate_reading_time(text: str) -> int:
+    """Estimate reading time in seconds at 200 words per minute."""
+    word_count = len(text.split())
+    return max(1, round(word_count / 200 * 60))
+
+
+def _simple_sentiment(text: str) -> str:
+    """Classify text sentiment as positive, negative, or neutral."""
+    _POS = {"good", "great", "excellent", "success", "improve", "benefit",
+             "positive", "increase", "growth", "effective", "best", "advantage",
+             "opportunity", "achieve", "win", "progress", "innovation", "strong"}
+    _NEG = {"bad", "fail", "problem", "issue", "risk", "negative", "decrease",
+             "loss", "poor", "weak", "challenge", "threat", "error", "wrong",
+             "difficult", "decline", "concern", "crisis", "danger"}
+    words = set(_tokenize(text))
+    pos = len(words & _POS)
+    neg = len(words & _NEG)
+    if pos > neg:
+        return "positive"
+    if neg > pos:
+        return "negative"
+    return "neutral"
+
+
+@app.route("/api/ai/analyze", methods=["POST"])
+def ai_analyze():
+    """
+    Analyze the text content of one or more slides and return:
+     - keywords  : top frequent content words with relative scores
+     - summary   : extractive summary (3 sentences max)
+     - sentiment : positive / negative / neutral
+     - reading_time_seconds : estimated reading time
+     - word_count : total word count
+    """
+    data: dict[str, Any] = request.get_json(force=True) or {}
+    text: str = data.get("text", "").strip()
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    try:
+        return jsonify({
+            "keywords": _extract_keywords(text),
+            "summary": _extractive_summary(text),
+            "sentiment": _simple_sentiment(text),
+            "reading_time_seconds": _estimate_reading_time(text),
+            "word_count": len(text.split()),
+        })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"

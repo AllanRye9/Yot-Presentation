@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/css/style.css"/>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='28'>🎤</text></svg>"/>
 </head>
+<!-- Theme color is applied dynamically via JS by toggling data-theme on <html> -->
 <body>
 <div id="app">
 
@@ -97,6 +98,32 @@
           </svg>
         </button>
 
+        <!-- landscape / portrait toggle -->
+        <button id="btn-landscape" class="icon-btn" title="Toggle landscape / portrait aspect ratio">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2"/>
+          </svg>
+        </button>
+
+        <!-- theme selector -->
+        <button id="btn-theme" class="icon-btn" title="Change colour theme">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a10 10 0 0 1 0 20"/>
+            <path d="M12 2v20"/>
+          </svg>
+        </button>
+        <!-- theme picker dropdown -->
+        <div id="theme-picker" class="hidden">
+          <button class="theme-swatch" data-theme="dark"   title="Dark">🌑 Dark</button>
+          <button class="theme-swatch" data-theme="light"  title="Light">☀️ Light</button>
+          <button class="theme-swatch" data-theme="ocean"  title="Ocean">🌊 Ocean</button>
+          <button class="theme-swatch" data-theme="forest" title="Forest">🌲 Forest</button>
+          <button class="theme-swatch" data-theme="sunset" title="Sunset">🌅 Sunset</button>
+        </div>
+
         <!-- zoom -->
         <button id="btn-zoom-out" class="icon-btn" title="Zoom out (voice: 'zoom out')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -151,8 +178,26 @@
           </svg>
         </button>
 
+        <!-- read aloud (TTS) -->
+        <button id="btn-read-aloud" class="icon-btn" title="Read slide aloud (Text-to-Speech)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        </button>
+
+        <!-- AI analysis -->
+        <button id="btn-ai" class="icon-btn" title="AI slide analysis">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/>
+          </svg>
+        </button>
+
         <!-- blackout -->
-        <button id="btn-blackout" class="icon-btn danger" title="Black screen (voice: 'blackout' / 'B key')">
+        <button id="btn-blackout" class="icon-btn danger" title="Black screen (voice: 'blackout' / B key)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
@@ -233,6 +278,45 @@
     <!-- speaker notes -->
     <div id="notes-panel"></div>
 
+    <!-- Read Aloud (TTS) panel -->
+    <div id="tts-panel" class="hidden">
+      <div class="tts-controls">
+        <label for="tts-voice-select">Voice / Accent:</label>
+        <select id="tts-voice-select" title="Select voice / accent"></select>
+
+        <label for="tts-rate">Speed:</label>
+        <input type="range" id="tts-rate" min="0.5" max="2.0" step="0.1" value="1.0"/>
+        <span id="tts-rate-label">1.0×</span>
+
+        <label for="tts-lang-select">Language:</label>
+        <select id="tts-lang-select" title="TTS language">
+          <option value="">Auto (follow voice)</option>
+          <option value="en-US">🇬🇧 English (US)</option>
+          <option value="en-GB">🇬🇧 English (UK)</option>
+          <option value="es-ES">🇪🇸 Spanish</option>
+          <option value="fr-FR">🇫🇷 French</option>
+          <option value="de-DE">🇩🇪 German</option>
+          <option value="it-IT">🇮🇹 Italian</option>
+          <option value="pt-BR">🇧🇷 Portuguese</option>
+          <option value="zh-CN">🇨🇳 Chinese</option>
+          <option value="ja-JP">🇯🇵 Japanese</option>
+        </select>
+
+        <button id="btn-tts-play" class="btn-primary btn-sm" type="button">▶ Read Slide</button>
+        <button id="btn-tts-stop" class="btn-sm" type="button">■ Stop</button>
+      </div>
+    </div>
+
+    <!-- AI analysis panel -->
+    <div id="ai-panel" class="hidden">
+      <div class="ai-panel-header">
+        <span>🧠 AI Analysis</span>
+        <button id="btn-ai-analyze" class="btn-primary btn-sm" type="button">Analyze Slide</button>
+        <button id="btn-ai-close" class="btn-sm" type="button">✕</button>
+      </div>
+      <div id="ai-results"></div>
+    </div>
+
     <!-- voice control bar -->
     <div id="voice-panel">
       <button id="btn-voice" type="button" title="Toggle voice control">
@@ -304,6 +388,32 @@
         <strong>🧠 AI Suggestions:</strong> The app learns from your voice usage and surfaces your
         most-used commands as quick-tap chips in the voice bar.
         Command data is stored locally in SQLite – never sent to third parties.
+      </p>
+
+      <br/>
+      <p style="color:var(--text2);font-size:.82rem">
+        <strong>🖼️ Landscape / Portrait:</strong> Click the rectangle icon in the toolbar to toggle
+        between 16:9 widescreen and 4:3 portrait aspect ratios.
+      </p>
+
+      <br/>
+      <p style="color:var(--text2);font-size:.82rem">
+        <strong>🎨 Themes:</strong> Click the palette icon in the toolbar to choose from Dark, Light,
+        Ocean, Forest, or Sunset colour themes.
+      </p>
+
+      <br/>
+      <p style="color:var(--text2);font-size:.82rem">
+        <strong>🔊 Read Aloud:</strong> Click the speaker icon to open the Text-to-Speech panel.
+        Choose a voice / accent, adjust speed, select a language, then click <em>Read Slide</em>
+        to have the slide content read aloud using your browser's built-in speech synthesis engine.
+      </p>
+
+      <br/>
+      <p style="color:var(--text2);font-size:.82rem">
+        <strong>🤖 AI Analysis:</strong> Click the brain icon to run an AI analysis of the current
+        slide. The engine extracts keywords, generates an extractive summary, estimates reading time,
+        and classifies the slide's sentiment – all locally, with no data leaving your browser session.
       </p>
 
       <br/>

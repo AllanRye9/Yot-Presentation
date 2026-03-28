@@ -121,6 +121,27 @@ export class PresentationViewer {
     this.$panel.classList.toggle('hidden');
   }
 
+  /**
+   * Return a plain-text representation of the current slide's content.
+   * Used by the TTS (Read Aloud) and AI analysis features.
+   */
+  getCurrentSlideText() {
+    const slide = this.slides[this.currentIndex];
+    if (!slide) return '';
+    const parts = [];
+    if (slide.title) parts.push(slide.title);
+    if (slide.type === 'text') {
+      (slide.bullets || []).forEach(b => parts.push(b.text));
+    } else if (slide.type === 'table') {
+      if (slide.headers) parts.push(slide.headers.join(' | '));
+      (slide.rows || []).forEach(r => parts.push(r.join(' | ')));
+    } else if (slide.type === 'image') {
+      if (slide.notes) parts.push(slide.notes);
+    }
+    if (slide.notes && slide.type !== 'image') parts.push(slide.notes);
+    return parts.filter(Boolean).join('. ');
+  }
+
   // ── rendering ──────────────────────────────────────────────────────────
 
   _render(dir = 'jump') {
