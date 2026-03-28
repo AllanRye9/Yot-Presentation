@@ -450,11 +450,11 @@ $btnAiAnalyze.addEventListener('click', () => analyzeCurrentSlide());
 async function analyzeCurrentSlide() {
   const text = viewer.getCurrentSlideText();
   if (!text) {
-    $aiResults.innerHTML = '<span style="color:var(--text2)">No text content on this slide to analyse.</span>';
+    $aiResults.innerHTML = '<span style="color:var(--text2)">No text content on this slide to analyze.</span>';
     return;
   }
 
-  $aiResults.innerHTML = '<span style="color:var(--text2)">🔄 Analysing…</span>';
+  $aiResults.innerHTML = '<span style="color:var(--text2)">🔄 Analyzing…</span>';
 
   try {
     const res  = await fetch('/api/ai/analyze', {

@@ -696,7 +696,7 @@ def _extract_keywords(text: str, top_n: int = 8) -> list[dict[str, Any]]:
 
 
 def _extractive_summary(text: str, num_sentences: int = 3) -> str:
-    """Simple frequency-based extractive summarisation."""
+    """Simple frequency-based extractive summarization."""
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if len(s.strip()) > 20]
     if not sentences:
         return text[:300] if text else ""
@@ -745,7 +745,7 @@ def _simple_sentiment(text: str) -> str:
 @app.route("/api/ai/analyze", methods=["POST"])
 def ai_analyze():
     """
-    Analyse the text content of one or more slides and return:
+    Analyze the text content of one or more slides and return:
      - keywords  : top frequent content words with relative scores
      - summary   : extractive summary (3 sentences max)
      - sentiment : positive / negative / neutral

@@ -522,7 +522,7 @@ class TestAIHelpers:
 
     _TEXT = (
         "Machine learning is a powerful technology that improves performance. "
-        "AI systems can analyse data and make intelligent decisions. "
+        "AI systems can analyze data and make intelligent decisions. "
         "This leads to significant improvements and great business growth."
     )
 
