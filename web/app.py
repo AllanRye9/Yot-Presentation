@@ -3,6 +3,12 @@
 Yot-Presentation Web Application
 Converts uploaded files (PDF, Word, Excel, images, text) into
 an online presentation with AI-powered voice command control.
+
+New in v5.4:
+- File management system: upload multiple files, switch between them, delete.
+- ML learning: tracks voice command usage in SQLite; surfaces personalised
+  suggestions to help frequent users work faster.
+- Docker-ready: listens on 0.0.0.0, DATA_DIR env-var for the SQLite DB path.
 """
 
 import base64
@@ -10,6 +16,9 @@ import io
 import json
 import os
 import re
+import sqlite3
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +26,17 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
+
+# ─── runtime configuration ────────────────────────────────────────────────
+DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "yot_learning.db"
+
+# In-memory file registry: file_id → {filename, total_slides, slides,
+#                                      created_at, thumbnail}
+# NOTE: this resets on restart – mount DATA_DIR as a Docker volume if
+# you need persistence across restarts.
+_file_registry: dict[str, dict[str, Any]] = {}
 
 ALLOWED_EXTENSIONS = {
     "pdf",
@@ -397,6 +417,97 @@ def match_command(text: str) -> dict[str, Any]:
 
 
 # ─────────────────────────────────────────────
+# ML learning – SQLite-backed command frequency
+# ─────────────────────────────────────────────
+
+
+def _get_db() -> sqlite3.Connection:
+    """Return a connection to the learning database, creating tables if needed."""
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS command_usage (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            command   TEXT    NOT NULL,
+            text      TEXT    NOT NULL,
+            lang      TEXT    NOT NULL DEFAULT 'en',
+            confidence REAL   NOT NULL DEFAULT 0.0,
+            ts        TEXT    NOT NULL
+        )
+        """
+    )
+    conn.commit()
+    return conn
+
+
+def record_command(command: str, text: str, lang: str, confidence: float) -> None:
+    """Insert one command-usage record into the learning database."""
+    ts = datetime.now(timezone.utc).isoformat()
+    with _get_db() as conn:
+        conn.execute(
+            "INSERT INTO command_usage (command, text, lang, confidence, ts) VALUES (?,?,?,?,?)",
+            (command, text, lang, confidence, ts),
+        )
+
+
+def get_suggestions(limit: int = 5) -> list[dict[str, Any]]:
+    """Return the most-frequently-used commands, highest count first."""
+    with _get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT command,
+                   COUNT(*)                             AS count,
+                   AVG(confidence)                      AS avg_confidence,
+                   MAX(ts)                              AS last_used
+            FROM   command_usage
+            WHERE  command != 'unknown'
+            GROUP  BY command
+            ORDER  BY count DESC, last_used DESC
+            LIMIT  ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "command": row["command"],
+            "count": row["count"],
+            "avg_confidence": round(row["avg_confidence"], 3),
+            "last_used": row["last_used"],
+        }
+        for row in rows
+    ]
+
+
+# ─────────────────────────────────────────────
+# file management helpers
+# ─────────────────────────────────────────────
+
+
+def _thumbnail_for_slides(slides: list[dict[str, Any]]) -> str:
+    """Return a data-URI thumbnail from the first slide (image type only)."""
+    if slides and slides[0].get("type") == "image":
+        return slides[0]["image"]
+    return ""
+
+
+def _register_file(
+    filename: str, slides: list[dict[str, Any]]
+) -> str:
+    """Store the file in the registry and return its UUID."""
+    file_id = str(uuid.uuid4())
+    _file_registry[file_id] = {
+        "id": file_id,
+        "filename": filename,
+        "total_slides": len(slides),
+        "slides": slides,
+        "thumbnail": _thumbnail_for_slides(slides),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return file_id
+
+
+# ─────────────────────────────────────────────
 # routes
 # ─────────────────────────────────────────────
 
@@ -448,15 +559,96 @@ def upload_file():
             "webp": lambda b: convert_image(b, filename),
         }
         slides = converters[ext](file_bytes)
+        file_id = _register_file(filename, slides)
         return jsonify(
             {
                 "success": True,
+                "file_id": file_id,
                 "filename": filename,
                 "total_slides": len(slides),
                 "slides": slides,
             }
         )
     except (ImportError, ValueError, OSError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+# ─── file management ─────────────────────────────────────────────────────────
+
+
+@app.route("/api/files", methods=["GET"])
+def list_files():
+    """Return metadata for all uploaded files (no slide data to keep payload small)."""
+    files = [
+        {
+            "id": entry["id"],
+            "filename": entry["filename"],
+            "total_slides": entry["total_slides"],
+            "thumbnail": entry["thumbnail"],
+            "created_at": entry["created_at"],
+        }
+        for entry in _file_registry.values()
+    ]
+    # newest first
+    files.sort(key=lambda f: f["created_at"], reverse=True)
+    return jsonify({"files": files})
+
+
+@app.route("/api/files/<file_id>", methods=["GET"])
+def get_file(file_id: str):
+    """Return the full slide data for a single file."""
+    entry = _file_registry.get(file_id)
+    if entry is None:
+        return jsonify({"error": "File not found"}), 404
+    return jsonify(
+        {
+            "success": True,
+            "file_id": file_id,
+            "filename": entry["filename"],
+            "total_slides": entry["total_slides"],
+            "slides": entry["slides"],
+        }
+    )
+
+
+@app.route("/api/files/<file_id>", methods=["DELETE"])
+def delete_file(file_id: str):
+    """Remove a file from the in-memory registry."""
+    if file_id not in _file_registry:
+        return jsonify({"error": "File not found"}), 404
+    del _file_registry[file_id]
+    return jsonify({"success": True, "deleted": file_id})
+
+
+# ─── ML learning ─────────────────────────────────────────────────────────────
+
+
+@app.route("/api/learn", methods=["POST"])
+def learn():
+    """Record a successfully executed voice command for ML training."""
+    data: dict[str, Any] = request.get_json(force=True) or {}
+    command: str = data.get("command", "")
+    text: str = data.get("text", "")
+    lang: str = data.get("lang", "en")
+    confidence: float = float(data.get("confidence", 0.0))
+
+    if not command or command == "unknown":
+        return jsonify({"error": "No valid command provided"}), 400
+
+    try:
+        record_command(command, text, lang, confidence)
+        return jsonify({"success": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/suggestions", methods=["GET"])
+def suggestions():
+    """Return the user's most-frequently-used commands (ML-derived)."""
+    limit = min(int(request.args.get("limit", 5)), 20)
+    try:
+        return jsonify({"suggestions": get_suggestions(limit)})
+    except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
 
