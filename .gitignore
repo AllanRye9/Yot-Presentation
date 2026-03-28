@@ -54,3 +54,6 @@ training_data/exports/
 # Web app – uploaded files and generated caches
 web/uploads/
 web/.env
+
+# Web app – runtime data directory (ML learning DB, etc.)
+web/data/
