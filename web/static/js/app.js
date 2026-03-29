@@ -45,6 +45,7 @@ const $btnZoomIn         = document.getElementById('btn-zoom-in');
 const $btnZoomOut        = document.getElementById('btn-zoom-out');
 const $btnZoomReset      = document.getElementById('btn-zoom-reset');
 const $btnNewUpload      = document.getElementById('btn-new-upload');
+const $btnChooseFile     = document.getElementById('btn-choose-file');
 const $navPrev           = document.getElementById('nav-prev');
 const $navNext           = document.getElementById('nav-next');
 const $fileSidebar       = document.getElementById('file-library-sidebar');
@@ -71,6 +72,7 @@ const $aiPanel           = document.getElementById('ai-panel');
 const $btnAiAnalyze      = document.getElementById('btn-ai-analyze');
 const $btnAiClose        = document.getElementById('btn-ai-close');
 const $aiResults         = document.getElementById('ai-results');
+const $penOptions        = document.getElementById('pen-options');
 
 // ─── state ───────────────────────────────────────────────────────────────
 let _currentFileId = null;    // UUID of the currently-presented file
@@ -94,7 +96,11 @@ const voice = new VoiceController({
 
 // ─── upload ───────────────────────────────────────────────────────────────
 
-$dropZone.addEventListener('click',     () => $fileInput.click());
+$dropZone.addEventListener('click', (e) => {
+  // Prevent double-open when the "Choose File" button inside the drop zone is clicked
+  if (e.target.closest('button')) return;
+  $fileInput.click();
+});
 $dropZone.addEventListener('dragover',  (e) => { e.preventDefault(); $dropZone.classList.add('drag-over'); });
 $dropZone.addEventListener('dragleave', ()  => $dropZone.classList.remove('drag-over'));
 $dropZone.addEventListener('drop', (e) => {
@@ -102,6 +108,11 @@ $dropZone.addEventListener('drop', (e) => {
   $dropZone.classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
   if (file) uploadFile(file);
+});
+
+$btnChooseFile.addEventListener('click', (e) => {
+  e.stopPropagation();
+  $fileInput.click();
 });
 
 $fileInput.addEventListener('change', () => {
@@ -647,12 +658,34 @@ function activateDrawTool(tool) {
   [$btnPen, $btnEraser, $btnPointer].forEach(b => b.classList.remove('active'));
   const map = { pen: $btnPen, eraser: $btnEraser, pointer: $btnPointer };
   map[tool]?.classList.add('active');
+
+  // Show pen options only when pen is active
+  $penOptions.classList.toggle('hidden', tool !== 'pen');
+
   switch (tool) {
     case 'pen':     viewer.setPenTool(); break;
     case 'eraser':  viewer.setEraser();  break;
     default:        viewer.setPointer(); break;
   }
 }
+
+// ─── pen options ──────────────────────────────────────────────────────────
+
+$penOptions.querySelectorAll('.pen-color').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $penOptions.querySelectorAll('.pen-color').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    viewer.setPenColor(btn.dataset.color);
+  });
+});
+
+$penOptions.querySelectorAll('.pen-size').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $penOptions.querySelectorAll('.pen-size').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    viewer.setPenWidth(parseInt(btn.dataset.size, 10));
+  });
+});
 
 // ─── help modal ───────────────────────────────────────────────────────────
 $btnHelp.addEventListener('click',      () => $helpModal.classList.add('open'));

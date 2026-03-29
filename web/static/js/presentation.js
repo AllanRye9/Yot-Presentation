@@ -40,6 +40,8 @@ export class PresentationViewer {
     this._lastX        = 0;
     this._lastY        = 0;
     this._annotations  = {}; // slideIndex → ImageData
+    this._penColor     = '#ff4444';
+    this._penWidth     = 4;
 
     // blackout click closes it
     this.$blackout.addEventListener('click', () => this.toggleBlackout(false));
@@ -108,6 +110,9 @@ export class PresentationViewer {
   setPenTool()   { this._setDrawMode('pen'); }
   setEraser()    { this._setDrawMode('eraser'); }
   setPointer()   { this._setDrawMode('pointer'); }
+
+  setPenColor(color) { this._penColor = color; }
+  setPenWidth(width) { this._penWidth = width; }
 
   toggleNotes() {
     const slide = this.slides[this.currentIndex];
@@ -313,8 +318,8 @@ export class PresentationViewer {
         ctx.strokeStyle = 'rgba(0,0,0,1)';
       } else {
         ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = this._penWidth;
+        ctx.strokeStyle = this._penColor;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
       }
