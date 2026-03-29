@@ -522,7 +522,10 @@ def _register_file(
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    try:
+        return render_template("index.html")
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/upload", methods=["POST"])
@@ -577,7 +580,7 @@ def upload_file():
                 "slides": slides,
             }
         )
-    except (ImportError, ValueError, OSError, RuntimeError) as exc:
+    except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
 
@@ -587,45 +590,54 @@ def upload_file():
 @app.route("/api/files", methods=["GET"])
 def list_files():
     """Return metadata for all uploaded files (no slide data to keep payload small)."""
-    files = [
-        {
-            "id": entry["id"],
-            "filename": entry["filename"],
-            "total_slides": entry["total_slides"],
-            "thumbnail": entry["thumbnail"],
-            "created_at": entry["created_at"],
-        }
-        for entry in _file_registry.values()
-    ]
-    # newest first
-    files.sort(key=lambda f: f["created_at"], reverse=True)
-    return jsonify({"files": files})
+    try:
+        files = [
+            {
+                "id": entry["id"],
+                "filename": entry["filename"],
+                "total_slides": entry["total_slides"],
+                "thumbnail": entry["thumbnail"],
+                "created_at": entry["created_at"],
+            }
+            for entry in _file_registry.values()
+        ]
+        # newest first
+        files.sort(key=lambda f: f["created_at"], reverse=True)
+        return jsonify({"files": files})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/files/<file_id>", methods=["GET"])
 def get_file(file_id: str):
     """Return the full slide data for a single file."""
-    entry = _file_registry.get(file_id)
-    if entry is None:
-        return jsonify({"error": "File not found"}), 404
-    return jsonify(
-        {
-            "success": True,
-            "file_id": file_id,
-            "filename": entry["filename"],
-            "total_slides": entry["total_slides"],
-            "slides": entry["slides"],
-        }
-    )
+    try:
+        entry = _file_registry.get(file_id)
+        if entry is None:
+            return jsonify({"error": "File not found"}), 404
+        return jsonify(
+            {
+                "success": True,
+                "file_id": file_id,
+                "filename": entry["filename"],
+                "total_slides": entry["total_slides"],
+                "slides": entry["slides"],
+            }
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/files/<file_id>", methods=["DELETE"])
 def delete_file(file_id: str):
     """Remove a file from the in-memory registry."""
-    if file_id not in _file_registry:
-        return jsonify({"error": "File not found"}), 404
-    del _file_registry[file_id]
-    return jsonify({"success": True, "deleted": file_id})
+    try:
+        if file_id not in _file_registry:
+            return jsonify({"error": "File not found"}), 404
+        del _file_registry[file_id]
+        return jsonify({"success": True, "deleted": file_id})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 # ─── ML learning ─────────────────────────────────────────────────────────────
@@ -663,10 +675,13 @@ def suggestions():
 @app.route("/api/command", methods=["POST"])
 def process_command():
     """Process a voice-command transcript and return the matched action."""
-    data: dict[str, Any] = request.get_json(force=True) or {}
-    text: str = data.get("text", "")
-    result = match_command(text)
-    return jsonify(result)
+    try:
+        data: dict[str, Any] = request.get_json(force=True) or {}
+        text: str = data.get("text", "")
+        result = match_command(text)
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 # ─── AI text analysis ─────────────────────────────────────────────────────
