@@ -18,6 +18,8 @@ var/
 wheels/
 *.egg-info/
 .installed.cfg
+# Un-ignore the Flutter app's lib/ directory (the rule above is for Python venvs)
+!flutter/lib/
 *.egg
 
 # Virtual Environment
