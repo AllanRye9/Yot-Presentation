@@ -40,7 +40,7 @@
         <span class="file-type-badge">WebP / BMP</span>
       </div>
       <br/>
-      <button class="btn-primary" type="button" onclick="document.getElementById('file-input').click()">
+      <button class="btn-primary" id="btn-choose-file" type="button">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -222,6 +222,26 @@
         </button>
 
         <button id="btn-new-upload" type="button">↑ New File</button>
+      </div>
+    </div>
+
+    <!-- pen options panel (shown when pen tool is active) -->
+    <div id="pen-options" class="hidden">
+      <span class="pen-options-label">Color:</span>
+      <div class="pen-color-swatches">
+        <button class="pen-color active" data-color="#ff4444" style="background:#ff4444" title="Red"></button>
+        <button class="pen-color" data-color="#4488ff" style="background:#4488ff" title="Blue"></button>
+        <button class="pen-color" data-color="#44cc44" style="background:#44cc44" title="Green"></button>
+        <button class="pen-color" data-color="#ffdd44" style="background:#ffdd44" title="Yellow"></button>
+        <button class="pen-color" data-color="#ff8800" style="background:#ff8800" title="Orange"></button>
+        <button class="pen-color" data-color="#ffffff" style="background:#ffffff;border:1px solid #555" title="White"></button>
+        <button class="pen-color" data-color="#000000" style="background:#000000;border:1px solid #555" title="Black"></button>
+      </div>
+      <span class="pen-options-label">Size:</span>
+      <div class="pen-size-btns">
+        <button class="pen-size" data-size="2" title="Thin"><span class="pen-size-preview" style="height:2px"></span></button>
+        <button class="pen-size active" data-size="4" title="Medium"><span class="pen-size-preview" style="height:4px"></span></button>
+        <button class="pen-size" data-size="8" title="Thick"><span class="pen-size-preview" style="height:8px"></span></button>
       </div>
     </div>
 

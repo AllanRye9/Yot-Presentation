@@ -996,6 +996,7 @@ html, body {
 /* Portrait / 4:3 mode when toggled */
 #slide-stage.portrait #slide-canvas {
   aspect-ratio: 4 / 3;
+  width: min(100%, calc(100vh * 4 / 3));
 }
 
 /* Landscape indicator on the button */
@@ -1045,6 +1046,8 @@ html, body {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+#theme-picker.hidden { display: none; }
 
 /* ════════════════════════════════════════════
    READ ALOUD (TTS) PANEL
@@ -1211,5 +1214,81 @@ html, body {
   background: var(--surface);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* ════════════════════════════════════════════
+   PEN OPTIONS PANEL
+   ════════════════════════════════════════════ */
+#pen-options {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+#pen-options.hidden { display: none; }
+
+.pen-options-label {
+  font-size: 0.75rem;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.pen-color-swatches {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.pen-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.pen-color:hover { transform: scale(1.15); }
+.pen-color.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+
+.pen-size-btns {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.pen-size {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+}
+.pen-size:hover { background: var(--border); }
+.pen-size.active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.pen-size.active .pen-size-preview { background: var(--bg); }
+
+.pen-size-preview {
+  display: block;
+  width: 16px;
+  background: var(--text);
+  border-radius: 99px;
 }
 
