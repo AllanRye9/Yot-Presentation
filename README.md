@@ -25,6 +25,7 @@ Yot_Presentation is an **intelligent voice control system** that lets you naviga
 
 - **Desktop app** (`src/v5.3.1/`) — Controls Microsoft PowerPoint directly via COM automation on Windows.
 - **Web app** (`web/`) — Upload any document (PDF, Word, Excel, images, text) and present it in your browser with the same voice commands, on any platform. **Now fully Dockerized for one-command deployment.**
+- **Mobile app** (`flutter/`) — Flutter app for Android & iOS. Connects to the Flask backend for the same file upload, slide viewer, and voice control experience on your phone.
 
 Instead of remembering rigid voice commands, just speak naturally and the AI understands your intent. Whether you say "next slide," "go forward," or "siguiente," it works the same way.
 
@@ -872,6 +873,7 @@ Yot_Presentation is an **intelligent voice control system** that lets you naviga
 
 - **Desktop app** (`src/v5.3.1/`) — Controls Microsoft PowerPoint directly via COM automation on Windows.
 - **Web app** (`web/`) — Upload any document (PDF, Word, Excel, images, text) and present it in your browser with the same voice commands, on any platform.
+- **Mobile app** (`flutter/`) — Flutter app for Android & iOS. Connects to the Flask backend for the same file upload, slide viewer, and voice control experience on your phone.
 
 Instead of remembering rigid voice commands, just speak naturally and the AI understands your intent. Whether you say "next slide," "go forward," or "siguiente," it works the same way.
 
