@@ -29,7 +29,14 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
 
 # ─── runtime configuration ────────────────────────────────────────────────
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    # Serverless environments (e.g. Vercel) have a read-only deployment
+    # filesystem; fall back to a writable temporary directory.
+    import tempfile
+    DATA_DIR = Path(tempfile.gettempdir()) / "yot-data"
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "yot_learning.db"
 
 # In-memory file registry: file_id → {filename, total_slides, slides,
