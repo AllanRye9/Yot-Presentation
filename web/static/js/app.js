@@ -26,6 +26,7 @@ const $uploadProgress    = document.getElementById('upload-progress');
 const $progressFill      = document.getElementById('progress-fill');
 const $progressLabel     = document.getElementById('progress-label');
 const $errorToast        = document.getElementById('error-toast');
+const $appToastContainer = document.getElementById('app-toast-container');
 const $fileName          = document.getElementById('file-name');
 const $btnVoice          = document.getElementById('btn-voice');
 const $voiceStatus       = document.getElementById('voice-status');
@@ -159,8 +160,10 @@ async function uploadFile(file, switchTo = true) {
 
     if (switchTo) {
       loadPresentation(data);
+      showToast('success', '✅', 'File uploaded', data.filename);
     } else {
       hideProgress();
+      showToast('success', '✅', 'File added to library', data.filename);
     }
 
     // refresh both library views
@@ -277,6 +280,7 @@ async function openFileById(fileId) {
     showProgress('Done!', 100);
     await sleep(300);
     loadPresentation(data);
+    showToast('info', '📂', 'File opened', data.filename);
   } catch (err) {
     hideProgress();
     showError(err.message);
@@ -287,6 +291,7 @@ async function deleteFile(fileId, onDone) {
   try {
     await fetch(`/api/files/${fileId}`, { method: 'DELETE' });
     if (fileId === _currentFileId) _currentFileId = null;
+    showToast('warn', '🗑️', 'File deleted');
     onDone?.();
   } catch (err) {
     showError(err.message);
@@ -360,12 +365,24 @@ function applyTheme(theme) {
   $btnTheme.classList.toggle('active', theme !== 'dark');
   // persist choice
   try { localStorage.setItem('yot-theme', theme); } catch (_) {}
+  showToast('info', '🎨', 'Theme changed', theme.charAt(0).toUpperCase() + theme.slice(1));
 }
 
-// Restore saved theme
+// Restore saved theme (silently, no toast on page load)
 try {
   const saved = localStorage.getItem('yot-theme');
-  if (saved) applyTheme(saved);
+  if (saved) {
+    _currentTheme = saved;
+    if (saved === 'dark') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+    $themePicker.querySelectorAll('.theme-swatch').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === saved);
+    });
+    $btnTheme.classList.toggle('active', saved !== 'dark');
+  }
 } catch (_) {}
 
 // ─── Read Aloud (TTS) ─────────────────────────────────────────────────────
@@ -392,7 +409,9 @@ if (window.speechSynthesis) {
 
 $btnReadAloud.addEventListener('click', () => {
   $ttsPanel.classList.toggle('hidden');
-  $btnReadAloud.classList.toggle('active', !$ttsPanel.classList.contains('hidden'));
+  const open = !$ttsPanel.classList.contains('hidden');
+  $btnReadAloud.classList.toggle('active', open);
+  if (open) showToast('info', '🔊', 'Read Aloud panel opened');
 });
 
 $ttsRate.addEventListener('input', () => {
@@ -433,6 +452,7 @@ function readCurrentSlideAloud() {
   utterance.onstart = () => {
     _ttsSpeaking = true;
     $btnTtsPlay.textContent = '⏸ Reading…';
+    showToast('info', '🔊', 'Reading slide aloud…');
   };
   utterance.onend = () => {
     _ttsSpeaking = false;
@@ -488,8 +508,10 @@ async function analyzeCurrentSlide() {
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'Analysis failed');
     renderAiResults(data);
+    showToast('success', '🧠', 'AI analysis complete');
   } catch (err) {
     $aiResults.innerHTML = `<span style="color:var(--danger)">Error: ${_esc(err.message)}</span>`;
+    showToast('error', '❌', 'AI analysis failed', err.message);
   }
 }
 
@@ -511,8 +533,10 @@ async function analyzeCurrentChart() {
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'Chart analysis failed');
     renderChartResults(data);
+    showToast('success', '📊', 'Chart analysis complete');
   } catch (err) {
     $aiResults.innerHTML = `<span style="color:var(--danger)">Error: ${_esc(err.message)}</span>`;
+    showToast('error', '❌', 'Chart analysis failed', err.message);
   }
 }
 
@@ -677,7 +701,13 @@ function handleVoiceCommand(cmd) {
 
 $btnVoice.addEventListener('click', () => {
   voice.toggle();
-  $btnVoice.classList.toggle('listening', voice.listening);
+  const isListening = voice.listening;
+  $btnVoice.classList.toggle('listening', isListening);
+  if (isListening) {
+    showToast('info', '🎤', 'Voice control active', 'Speak a command…');
+  } else {
+    showToast('info', '🔇', 'Voice control stopped');
+  }
 });
 
 $langSelect.addEventListener('change', () => {
@@ -785,6 +815,59 @@ function showError(msg) {
   $errorToast.classList.add('show');
   clearTimeout(_errorTimer);
   _errorTimer = setTimeout(() => $errorToast.classList.remove('show'), 5000);
+}
+
+// ─── toast notifications ──────────────────────────────────────────────────
+
+/**
+ * Show a brief toast notification.
+ * @param {'info'|'success'|'error'|'warn'} type
+ * @param {string} icon  Emoji icon
+ * @param {string} title Short headline
+ * @param {string} [msg] Optional detail line
+ * @param {number} [durationMs] Auto-dismiss delay (default 3500)
+ */
+function showToast(type, icon, title, msg = '', durationMs = 3500) {
+  if (!$appToastContainer) return;
+  const el = document.createElement('div');
+  el.className = `app-toast app-toast-${type}`;
+  el.innerHTML = `
+    <span class="app-toast-icon">${icon}</span>
+    <div class="app-toast-body">
+      <div class="app-toast-title">${_esc(title)}</div>
+      ${msg ? `<div class="app-toast-msg">${_esc(msg)}</div>` : ''}
+    </div>`;
+  $appToastContainer.appendChild(el);
+
+  const remove = () => {
+    el.classList.add('app-toast-out');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  };
+  const timer = setTimeout(remove, durationMs);
+  el.addEventListener('click', () => { clearTimeout(timer); remove(); });
+}
+
+// ─── swipe gesture support ────────────────────────────────────────────────
+
+{
+  let _touchStartX = 0;
+  let _touchStartY = 0;
+  const $stage = document.getElementById('slide-stage');
+
+  $stage.addEventListener('touchstart', (e) => {
+    _touchStartX = e.touches[0].clientX;
+    _touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  $stage.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - _touchStartX;
+    const dy = e.changedTouches[0].clientY - _touchStartY;
+    // Only trigger if horizontal swipe is dominant and > 50px
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      if (dx < 0) viewer.next();
+      else viewer.prev();
+    }
+  }, { passive: true });
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
