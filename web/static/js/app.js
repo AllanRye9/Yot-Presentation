@@ -70,6 +70,7 @@ const $btnTtsStop        = document.getElementById('btn-tts-stop');
 const $btnAi             = document.getElementById('btn-ai');
 const $aiPanel           = document.getElementById('ai-panel');
 const $btnAiAnalyze      = document.getElementById('btn-ai-analyze');
+const $btnAiAnalyzeChart = document.getElementById('btn-ai-analyze-chart');
 const $btnAiClose        = document.getElementById('btn-ai-close');
 const $aiResults         = document.getElementById('ai-results');
 const $penOptions        = document.getElementById('pen-options');
@@ -83,6 +84,7 @@ let _isPortrait    = false;   // landscape (16:9) by default
 const viewer = new PresentationViewer({
   onSlideChange: (current, total) => {
     document.getElementById('slide-counter').textContent = `${current} / ${total}`;
+    _updateChartButton();
   },
 });
 
@@ -449,6 +451,7 @@ function readCurrentSlideAloud() {
 $btnAi.addEventListener('click', () => {
   $aiPanel.classList.toggle('hidden');
   $btnAi.classList.toggle('active', !$aiPanel.classList.contains('hidden'));
+  if (!$aiPanel.classList.contains('hidden')) _updateChartButton();
 });
 
 $btnAiClose.addEventListener('click', () => {
@@ -457,6 +460,15 @@ $btnAiClose.addEventListener('click', () => {
 });
 
 $btnAiAnalyze.addEventListener('click', () => analyzeCurrentSlide());
+$btnAiAnalyzeChart.addEventListener('click', () => analyzeCurrentChart());
+
+/** Show/hide the "Analyze Chart" button depending on the current slide type. */
+function _updateChartButton() {
+  const slide = viewer.getCurrentSlide();
+  const isImage = slide && slide.type === 'image';
+  $btnAiAnalyzeChart.classList.toggle('hidden', !isImage);
+  $btnAiAnalyze.classList.toggle('hidden', isImage);
+}
 
 async function analyzeCurrentSlide() {
   const text = viewer.getCurrentSlideText();
@@ -479,6 +491,66 @@ async function analyzeCurrentSlide() {
   } catch (err) {
     $aiResults.innerHTML = `<span style="color:var(--danger)">Error: ${_esc(err.message)}</span>`;
   }
+}
+
+async function analyzeCurrentChart() {
+  const slide = viewer.getCurrentSlide();
+  if (!slide || slide.type !== 'image' || !slide.image) {
+    $aiResults.innerHTML = '<span style="color:var(--text2)">No chart image on this slide.</span>';
+    return;
+  }
+
+  $aiResults.innerHTML = '<span style="color:var(--text2)">🔄 Analyzing chart…</span>';
+
+  try {
+    const res  = await fetch('/api/ai/analyze-chart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: slide.image }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Chart analysis failed');
+    renderChartResults(data);
+  } catch (err) {
+    $aiResults.innerHTML = `<span style="color:var(--danger)">Error: ${_esc(err.message)}</span>`;
+  }
+}
+
+function renderChartResults(data) {
+  const typeEmoji = { bar: '📊', pie: '🥧', line: '📈', scatter: '🔵', unknown: '❓' };
+  const emoji = typeEmoji[data.chart_type_hint] || '❓';
+
+  const colorsHtml = (data.dominant_colors || []).map(c =>
+    `<span class="chart-color-swatch" style="background:${_esc(c)}" title="${_esc(c)}"></span>`
+  ).join('');
+
+  $aiResults.innerHTML = `
+    <div class="ai-meta" style="flex-wrap:wrap">
+      <div class="ai-meta-item">
+        <span class="ai-meta-value">${emoji} ${_esc(data.chart_type_hint)}</span>
+        <span class="ai-meta-label">Chart type</span>
+      </div>
+      <div class="ai-meta-item">
+        <span class="ai-meta-value">${data.width} × ${data.height}</span>
+        <span class="ai-meta-label">Dimensions</span>
+      </div>
+      <div class="ai-meta-item">
+        <span class="ai-meta-value">${data.brightness}</span>
+        <span class="ai-meta-label">Brightness</span>
+      </div>
+      <div class="ai-meta-item">
+        <span class="ai-meta-value">${data.colorfulness}</span>
+        <span class="ai-meta-label">Colorfulness</span>
+      </div>
+      <div class="ai-meta-item">
+        <span class="ai-meta-value">${data.has_white_background ? 'Yes' : 'No'}</span>
+        <span class="ai-meta-label">White bg</span>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <div class="ai-section-title">Dominant Colors</div>
+      <div class="chart-color-swatches">${colorsHtml}</div>
+    </div>`;
 }
 
 function renderAiResults(data) {

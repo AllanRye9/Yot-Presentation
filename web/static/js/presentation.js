@@ -147,6 +147,13 @@ export class PresentationViewer {
     return parts.filter(Boolean).join('. ');
   }
 
+  /**
+   * Return the current slide object (or null if no slides loaded).
+   */
+  getCurrentSlide() {
+    return this.slides[this.currentIndex] || null;
+  }
+
   // ── rendering ──────────────────────────────────────────────────────────
 
   _render(dir = 'jump') {

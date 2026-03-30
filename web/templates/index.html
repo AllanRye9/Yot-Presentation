@@ -42,6 +42,7 @@
         <span class="file-type-badge">PDF</span>
         <span class="file-type-badge">Word (.docx)</span>
         <span class="file-type-badge">Excel (.xlsx)</span>
+        <span class="file-type-badge">CSV</span>
         <span class="file-type-badge">Text (.txt)</span>
         <span class="file-type-badge">PNG / JPG / GIF</span>
         <span class="file-type-badge">WebP / BMP</span>
@@ -57,7 +58,7 @@
       </button>
     </div>
     <input type="file" id="file-input"
-           accept=".pdf,.docx,.doc,.xlsx,.xls,.txt,.png,.jpg,.jpeg,.gif,.bmp,.webp"/>
+           accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg,.gif,.bmp,.webp"/>
 
     <!-- upload progress -->
     <div id="upload-progress">
@@ -298,7 +299,7 @@
         </div>
         <div id="lib-sidebar-list"></div>
         <input type="file" id="file-input-pres"
-               accept=".pdf,.docx,.doc,.xlsx,.xls,.txt,.png,.jpg,.jpeg,.gif,.bmp,.webp"/>
+               accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg,.gif,.bmp,.webp"/>
       </div>
     </div>
 
@@ -339,6 +340,7 @@
       <div class="ai-panel-header">
         <span>🧠 AI Analysis</span>
         <button id="btn-ai-analyze" class="btn-primary btn-sm" type="button">Analyze Slide</button>
+        <button id="btn-ai-analyze-chart" class="btn-primary btn-sm hidden" type="button">📊 Analyze Chart</button>
         <button id="btn-ai-close" class="btn-sm" type="button">✕</button>
       </div>
       <div id="ai-results"></div>
@@ -441,6 +443,14 @@
         <strong>🤖 AI Analysis:</strong> Click the brain icon to run an AI analysis of the current
         slide. The engine extracts keywords, generates an extractive summary, estimates reading time,
         and classifies the slide's sentiment – all locally, with no data leaving your browser session.
+      </p>
+
+      <br/>
+      <p style="color:var(--text2);font-size:.82rem">
+        <strong>📊 Chart Analysis:</strong> When viewing an image slide (chart), click
+        <em>📊 Analyze Chart</em> in the AI panel to detect dominant colors, brightness,
+        colorfulness, and receive a best-effort chart-type hint (bar, pie, line, or scatter).
+        CSV files can also be uploaded directly and will be displayed as searchable tables.
       </p>
 
       <br/>
