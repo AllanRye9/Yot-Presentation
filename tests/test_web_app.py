@@ -863,6 +863,7 @@ class TestForexExpanded:
         all_pairs = [
             "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
             "EUR/GBP", "EUR/JPY", "EUR/AUD", "EUR/CAD", "GBP/JPY", "GBP/CHF", "AUD/JPY",
+            "XAU/USD",
         ]
         for pair in all_pairs:
             resp = client.get(f"/api/forex/signals?pair={pair.replace('/', '%2F')}")
@@ -939,6 +940,7 @@ class TestForexExpanded:
         all_pairs = [
             "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
             "EUR/GBP", "EUR/JPY", "EUR/AUD", "EUR/CAD", "GBP/JPY", "GBP/CHF", "AUD/JPY",
+            "XAU/USD",
         ]
         for pair in all_pairs:
             resp = client.get(f"/api/forex/technical?pair={pair.replace('/', '%2F')}")
@@ -960,9 +962,50 @@ class TestForexExpanded:
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert "major" in data and "cross" in data and "all" in data
-        assert len(data["all"]) == 14
+        assert len(data["all"]) == 15
         assert "EUR/USD" in data["major"]
         assert "EUR/GBP" in data["cross"]
+
+    def test_pairs_commodity_category(self, client):
+        resp = client.get("/api/forex/pairs")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "commodity" in data
+        assert "XAU/USD" in data["commodity"]
+        # Gold should not appear in major or cross forex groups
+        assert "XAU/USD" not in data["major"]
+        assert "XAU/USD" not in data["cross"]
+
+    # ── gold pair ──
+
+    def test_gold_pair_signal(self, client):
+        resp = client.get("/api/forex/signals?pair=XAU%2FUSD")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["pair"] == "XAU/USD"
+        assert data["direction"] in ("BUY", "SELL", "HOLD")
+        assert 0 <= data["confidence"] <= 100
+        assert data["entry_price"] > 1000, "Gold price should be in USD/oz range"
+        assert "take_profit" in data
+        assert "stop_loss" in data
+        assert len(data["history"]) == 30
+
+    def test_gold_pair_technical(self, client):
+        resp = client.get("/api/forex/technical?pair=XAU%2FUSD")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["pair"] == "XAU/USD"
+        assert "support_resistance" in data
+        sr = data["support_resistance"]
+        for r in sr["resistance"]:
+            assert r > data["current_price"]
+        for s in sr["support"]:
+            assert s < data["current_price"]
+
+    def test_gold_in_all_pairs_list(self, client):
+        resp = client.get("/api/forex/pairs")
+        data = json.loads(resp.data)
+        assert "XAU/USD" in data["all"]
 
 
 # ─── CSV upload ──────────────────────────────────────────────────────────────

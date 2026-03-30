@@ -82,6 +82,10 @@ function isJpy(pair) {
   return pair && pair.includes('JPY');
 }
 
+function isGold(pair) {
+  return pair && pair.startsWith('XAU');
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -151,7 +155,7 @@ function renderSignal(data) {
 }
 
 function formatPrice(price, pair) {
-  const decimals = isJpy(pair) ? 2 : 4;
+  const decimals = isJpy(pair) || isGold(pair) ? 2 : 4;
   return Number(price).toFixed(decimals);
 }
 
@@ -260,12 +264,16 @@ function drawChart(history) {
  */
 function pipValuePerStdLot(pair, entryPriceVal) {
   const LOT = 100_000;
+  const GOLD_LOT_OZ = 100; // standard gold lot = 100 troy oz
   const jpy = isJpy(pair);
-  const pipSize = jpy ? 0.01 : 0.0001;
+  const gold = isGold(pair);
+  const pipSize = gold ? 1.0 : (jpy ? 0.01 : 0.0001);
   const parts = pair.split('/');
   const quoteCcy = parts[1];
   const baseCcy  = parts[0];
 
+  // Gold (XAU/USD): standard lot = 100 oz, pip = $1 → pip value = $100 per 100-oz lot
+  if (gold) return pipSize * GOLD_LOT_OZ;
   // If quote currency is USD → pip value = pipSize * LOT (always $10 for std lot)
   if (quoteCcy === 'USD') return pipSize * LOT;
   // If base currency is USD → pip value = pipSize * LOT / entryPrice
@@ -359,7 +367,7 @@ async function loadTechnicalAnalysis(pair) {
 }
 
 function renderTechnicalAnalysis(data) {
-  const dec = isJpy(data.pair) ? 2 : 4;
+  const dec = isJpy(data.pair) || isGold(data.pair) ? 2 : 4;
   const fmt = v => Number(v).toFixed(dec);
 
   // Support & Resistance
