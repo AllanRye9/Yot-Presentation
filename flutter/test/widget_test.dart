@@ -24,6 +24,16 @@ void main() {
       expect(slide.content, isNull);
       expect(slide.title, isNull);
     });
+
+    test('toJson round-trips correctly', () {
+      final slide = Slide(
+          index: 2, type: 'text', content: 'Hello', title: 'Intro');
+      final json = slide.toJson();
+      expect(json['index'], 2);
+      expect(json['type'], 'text');
+      expect(json['content'], 'Hello');
+      expect(json['title'], 'Intro');
+    });
   });
 
   group('PresentationFile model', () {
@@ -46,6 +56,38 @@ void main() {
       });
       expect(f.id, 'xyz-456');
     });
+
+    test('fromJson parses thumbnail and createdAt', () {
+      final f = PresentationFile.fromJson({
+        'file_id': 'thumb-test',
+        'filename': 'slides.pdf',
+        'total_slides': 5,
+        'thumbnail': 'data:image/png;base64,abc123',
+        'created_at': '2024-01-01T00:00:00Z',
+      });
+      expect(f.thumbnail, 'data:image/png;base64,abc123');
+      expect(f.createdAt, '2024-01-01T00:00:00Z');
+    });
+
+    test('toJson includes thumbnail when present', () {
+      final f = PresentationFile(
+        id: 'a',
+        filename: 'test.pdf',
+        totalSlides: 3,
+        thumbnail: 'base64data',
+      );
+      final json = f.toJson();
+      expect(json['thumbnail'], 'base64data');
+    });
+
+    test('toJson omits thumbnail when null', () {
+      final f = PresentationFile(
+        id: 'b',
+        filename: 'test.pdf',
+        totalSlides: 1,
+      );
+      expect(f.toJson().containsKey('thumbnail'), isFalse);
+    });
   });
 
   group('ApiService base URL normalisation', () {
@@ -54,6 +96,11 @@ void main() {
       // The public field retains the original value; the private _base getter
       // strips the slash internally before building request URIs.
       expect(api.serverUrl, 'http://localhost:5000/');
+    });
+
+    test('serverUrl without trailing slash is unchanged', () {
+      final api = ApiService('http://192.168.1.10:5000');
+      expect(api.serverUrl, 'http://192.168.1.10:5000');
     });
   });
 }

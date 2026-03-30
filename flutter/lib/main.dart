@@ -7,12 +7,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final serverUrl = prefs.getString('server_url') ?? 'http://localhost:5000';
-  runApp(YotApp(initialServerUrl: serverUrl));
+  final voiceLocale = prefs.getString('voice_locale') ?? 'en_US';
+  runApp(YotApp(initialServerUrl: serverUrl, initialVoiceLocale: voiceLocale));
 }
 
 class YotApp extends StatefulWidget {
   final String initialServerUrl;
-  const YotApp({super.key, required this.initialServerUrl});
+  final String initialVoiceLocale;
+
+  const YotApp({
+    super.key,
+    required this.initialServerUrl,
+    required this.initialVoiceLocale,
+  });
 
   @override
   State<YotApp> createState() => _YotAppState();
@@ -20,15 +27,27 @@ class YotApp extends StatefulWidget {
 
 class _YotAppState extends State<YotApp> {
   late String _serverUrl;
+  late String _voiceLocale;
 
   @override
   void initState() {
     super.initState();
     _serverUrl = widget.initialServerUrl;
+    _voiceLocale = widget.initialVoiceLocale;
   }
 
   void _updateServerUrl(String url) {
     setState(() => _serverUrl = url);
+  }
+
+  Future<void> _reloadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _serverUrl = prefs.getString('server_url') ?? _serverUrl;
+        _voiceLocale = prefs.getString('voice_locale') ?? _voiceLocale;
+      });
+    }
   }
 
   @override
@@ -46,15 +65,20 @@ class _YotAppState extends State<YotApp> {
       ),
       home: UploadScreen(
         serverUrl: _serverUrl,
-        onSettingsTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => SettingsScreen(
-              serverUrl: _serverUrl,
-              onServerUrlChanged: _updateServerUrl,
+        voiceLocale: _voiceLocale,
+        onSettingsTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SettingsScreen(
+                serverUrl: _serverUrl,
+                onServerUrlChanged: _updateServerUrl,
+              ),
             ),
-          ),
-        ),
+          );
+          // Reload locale preference after returning from settings
+          await _reloadPreferences();
+        },
       ),
     );
   }
