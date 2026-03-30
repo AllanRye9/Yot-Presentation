@@ -81,6 +81,14 @@ function isJpy(pair) {
   return pair && pair.includes('JPY');
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // ─── Signal display ───────────────────────────────────────────────────────────
 async function loadSignal(pair) {
   refreshBtn.classList.add('spinning');
@@ -230,7 +238,19 @@ function drawChart(history) {
 
 // ─── Risk Management Calculator ───────────────────────────────────────────────
 
-/** Approximate pip value in USD per standard lot for a given pair/price. */
+/** Approximate pip value in USD per standard lot for a given pair/price.
+ *
+ * Pip sizes:  non-JPY = 0.0001 (1/10,000), JPY = 0.01 (1/100)
+ * Standard lot = 100,000 units
+ *
+ * Formula by quote currency:
+ *   - Quote is USD (e.g. EUR/USD):  pipValue = pipSize × lotSize  → always $10
+ *   - Base  is USD (e.g. USD/JPY):  pipValue = (pipSize × lotSize) / entryPrice
+ *   - JPY cross (e.g. EUR/JPY):     pipValue ≈ (pipSize × lotSize) / entryPrice × 100
+ *       The ×100 converts the yen-denominated pip to USD via the implicit $/¥ rate
+ *       (approximated as entryPrice / 100 because JPY crosses trade near ¥100–200).
+ *   - Other crosses:                approximated as $10 (same as quote-USD pairs)
+ */
 function pipValuePerStdLot(pair, entryPriceVal) {
   const LOT = 100_000;
   const jpy = isJpy(pair);
@@ -431,14 +451,6 @@ function renderNews(items) {
         </div>
       </div>
     </div>`).join('');
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 // ─── Alert Subscription ───────────────────────────────────────────────────────

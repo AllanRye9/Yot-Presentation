@@ -805,7 +805,16 @@ _SUPPORTED_PAIRS = (
 
 
 def _gen_seq(seed: str, n: int = 30) -> list[tuple[str, str, int]]:
-    """Return a deterministic (predicted, actual, pip_delta) sequence of length *n*."""
+    """Return a deterministic (predicted, actual, pip_delta) sequence of length *n*.
+
+    The MD5 hash of ``seed + index`` is used as a pseudo-random source so that
+    sequences are stable across restarts.  Bit-shifting extracts independent
+    sub-values from the same digest without re-hashing:
+      - bits 0-1  : predicted direction (0=BUY, 1=SELL, 2=HOLD)
+      - bits 4-5  : actual direction (same encoding); used only when a mismatch
+                    is triggered (~1-in-7 chance from bits 8-10)
+      - bits 12+  : pip magnitude, producing a range of [20, 60] pips
+    """
     _dirs = ["BUY", "SELL", "HOLD"]
     result: list[tuple[str, str, int]] = []
     for i in range(n):
@@ -813,6 +822,7 @@ def _gen_seq(seed: str, n: int = 30) -> list[tuple[str, str, int]]:
         pred = _dirs[h % 3]
         # ~1-in-7 chance the prediction is wrong
         actual = _dirs[(h >> 4) % 3] if (h >> 8) % 7 == 0 else pred
+        # abs_pip in range [20, 60]: base 20 + up to 40 from higher bits
         abs_pip = 20 + (h >> 12) % 41
         pip_delta = abs_pip if actual == "BUY" else (-abs_pip if actual == "SELL" else abs_pip // 10)
         result.append((pred, actual, pip_delta))
