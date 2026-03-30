@@ -29,9 +29,24 @@
     <div class="fx-pair-bar">
       <label for="pair-select" style="font-size:.9rem;color:var(--text2)">Currency Pair:</label>
       <select id="pair-select" class="fx-pair-select" aria-label="Select currency pair">
-        <option value="EUR/USD">EUR/USD – Euro / US Dollar</option>
-        <option value="GBP/USD">GBP/USD – British Pound / US Dollar</option>
-        <option value="USD/JPY">USD/JPY – US Dollar / Japanese Yen</option>
+        <optgroup label="── Major Pairs (USD)">
+          <option value="EUR/USD">EUR/USD – Euro / US Dollar</option>
+          <option value="GBP/USD">GBP/USD – British Pound / US Dollar</option>
+          <option value="USD/JPY">USD/JPY – US Dollar / Japanese Yen</option>
+          <option value="USD/CHF">USD/CHF – US Dollar / Swiss Franc</option>
+          <option value="AUD/USD">AUD/USD – Australian Dollar / US Dollar</option>
+          <option value="USD/CAD">USD/CAD – US Dollar / Canadian Dollar</option>
+          <option value="NZD/USD">NZD/USD – New Zealand Dollar / US Dollar</option>
+        </optgroup>
+        <optgroup label="── Cross / Hybrid Pairs">
+          <option value="EUR/GBP">EUR/GBP – Euro / British Pound</option>
+          <option value="EUR/JPY">EUR/JPY – Euro / Japanese Yen</option>
+          <option value="EUR/AUD">EUR/AUD – Euro / Australian Dollar</option>
+          <option value="EUR/CAD">EUR/CAD – Euro / Canadian Dollar</option>
+          <option value="GBP/JPY">GBP/JPY – British Pound / Japanese Yen</option>
+          <option value="GBP/CHF">GBP/CHF – British Pound / Swiss Franc</option>
+          <option value="AUD/JPY">AUD/JPY – Australian Dollar / Japanese Yen</option>
+        </optgroup>
       </select>
       <button id="btn-refresh" class="fx-refresh-btn" type="button" title="Refresh signal">
         <span class="refresh-icon">↻</span> Refresh
@@ -92,7 +107,128 @@
     </div>
   </section>
 
-  <!-- 3. AI Explanation & Transparency ────────────────────────────────────── -->
+  <!-- 3. Risk Management Calculator ──────────────────────────────────────── -->
+  <section id="section-risk">
+    <div class="fx-section-title">📐 Risk Management Calculator</div>
+    <div class="risk-calc-card">
+      <div class="risk-inputs">
+        <div class="risk-group">
+          <label class="risk-label" for="calc-balance">Account Balance ($)</label>
+          <input type="number" id="calc-balance" class="risk-input" value="10000" min="1" step="100"/>
+        </div>
+        <div class="risk-group">
+          <label class="risk-label" for="calc-risk-pct">Risk per Trade (%)</label>
+          <input type="number" id="calc-risk-pct" class="risk-input" value="2" min="0.1" max="100" step="0.1"/>
+        </div>
+        <div class="risk-group">
+          <label class="risk-label" for="calc-entry">Entry Price</label>
+          <input type="number" id="calc-entry" class="risk-input" value="" step="any" placeholder="Auto-filled"/>
+        </div>
+        <div class="risk-group">
+          <label class="risk-label" for="calc-sl">Stop Loss</label>
+          <input type="number" id="calc-sl" class="risk-input" value="" step="any" placeholder="Auto-filled"/>
+        </div>
+        <div class="risk-group">
+          <label class="risk-label" for="calc-tp">Take Profit</label>
+          <input type="number" id="calc-tp" class="risk-input" value="" step="any" placeholder="Auto-filled"/>
+        </div>
+        <div class="risk-group">
+          <label class="risk-label" for="calc-leverage">Leverage</label>
+          <select id="calc-leverage" class="risk-input">
+            <option value="50">50:1</option>
+            <option value="100" selected>100:1</option>
+            <option value="200">200:1</option>
+            <option value="500">500:1</option>
+          </select>
+        </div>
+        <div class="risk-group">
+          <label class="risk-label" for="calc-lot-type">Lot Type</label>
+          <select id="calc-lot-type" class="risk-input">
+            <option value="standard">Standard (100k)</option>
+            <option value="mini">Mini (10k)</option>
+            <option value="micro">Micro (1k)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="risk-results">
+        <div class="risk-result-item">
+          <span class="risk-result-label">Risk Amount</span>
+          <span class="risk-result-value accent" id="res-risk-amount">–</span>
+        </div>
+        <div class="risk-result-item">
+          <span class="risk-result-label">Position Size</span>
+          <span class="risk-result-value" id="res-position-size">–</span>
+        </div>
+        <div class="risk-result-item">
+          <span class="risk-result-label">Pip Value (per lot)</span>
+          <span class="risk-result-value" id="res-pip-value">–</span>
+        </div>
+        <div class="risk-result-item">
+          <span class="risk-result-label">Pips to Stop Loss</span>
+          <span class="risk-result-value sell" id="res-pips-sl">–</span>
+        </div>
+        <div class="risk-result-item">
+          <span class="risk-result-label">Pips to Take Profit</span>
+          <span class="risk-result-value buy" id="res-pips-tp">–</span>
+        </div>
+        <div class="risk-result-item rr-highlight">
+          <span class="risk-result-label">Risk : Reward</span>
+          <span class="risk-result-value rr-value" id="res-rr">–</span>
+        </div>
+        <div class="risk-result-item">
+          <span class="risk-result-label">Potential Profit</span>
+          <span class="risk-result-value buy" id="res-profit">–</span>
+        </div>
+        <div class="risk-result-item">
+          <span class="risk-result-label">Required Margin</span>
+          <span class="risk-result-value" id="res-margin">–</span>
+        </div>
+      </div>
+      <p class="risk-disclaimer">⚠️ Pip values are approximated for a USD-denominated account. Cross-pair values use mid-market estimates. For educational purposes only.</p>
+    </div>
+  </section>
+
+  <!-- 4. Technical Analysis ────────────────────────────────────────────────── -->
+  <section id="section-technical">
+    <div class="fx-section-title">🔍 Technical Analysis</div>
+    <div id="ta-loading" class="ta-loading">Loading technical data…</div>
+    <div id="ta-content" class="ta-grid" style="display:none">
+
+      <!-- Support & Resistance -->
+      <div class="ta-card">
+        <div class="ta-card-title">📏 Support &amp; Resistance</div>
+        <div id="ta-sr-content" class="ta-levels"></div>
+      </div>
+
+      <!-- Fair Value Gaps -->
+      <div class="ta-card">
+        <div class="ta-card-title">🌀 Fair Value Gaps (FVG)</div>
+        <div id="ta-fvg-content" class="ta-list"></div>
+      </div>
+
+      <!-- Break of Structure -->
+      <div class="ta-card">
+        <div class="ta-card-title">⚡ Break of Structure (BOS)</div>
+        <div id="ta-bos-content" class="ta-list"></div>
+      </div>
+
+      <!-- CHoCH -->
+      <div class="ta-card">
+        <div class="ta-card-title">🔄 Change of Character (CHoCH)</div>
+        <div id="ta-choch-content" class="ta-list"></div>
+      </div>
+
+      <!-- High Volume Zones -->
+      <div class="ta-card ta-card-wide">
+        <div class="ta-card-title">🔥 High Volume Trade Zones</div>
+        <div id="ta-volume-content" class="ta-list"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 5. AI Explanation & Transparency ────────────────────────────────────── -->
   <section>
     <div class="fx-section-title">🧠 How Our AI Works</div>
     <div class="fx-explanation">
@@ -122,7 +258,7 @@
     </div>
   </section>
 
-  <!-- 4. Historical Accuracy Chart ────────────────────────────────────────── -->
+  <!-- 6. Historical Accuracy Chart ────────────────────────────────────────── -->
   <section>
     <div class="fx-section-title">📉 Historical Accuracy – Last 30 Days</div>
     <div class="fx-chart-wrap">
@@ -135,7 +271,7 @@
     </div>
   </section>
 
-  <!-- 5. Real-Time News Sentiment Feed ────────────────────────────────────── -->
+  <!-- 7. Real-Time News Sentiment Feed ────────────────────────────────────── -->
   <section>
     <div class="fx-section-title">📰 News Sentiment Feed</div>
     <div class="fx-news-wrap">
@@ -144,7 +280,7 @@
     </div>
   </section>
 
-  <!-- 6. Alert Subscription ───────────────────────────────────────────────── -->
+  <!-- 8. Alert Subscription ───────────────────────────────────────────────── -->
   <section>
     <div class="fx-section-title">🔔 Get Signal Alerts</div>
     <div class="fx-subscribe">
@@ -169,6 +305,14 @@
           <label><input type="checkbox" value="EUR/USD" checked/> EUR/USD</label>
           <label><input type="checkbox" value="GBP/USD"/> GBP/USD</label>
           <label><input type="checkbox" value="USD/JPY"/> USD/JPY</label>
+          <label><input type="checkbox" value="USD/CHF"/> USD/CHF</label>
+          <label><input type="checkbox" value="AUD/USD"/> AUD/USD</label>
+          <label><input type="checkbox" value="USD/CAD"/> USD/CAD</label>
+          <label><input type="checkbox" value="NZD/USD"/> NZD/USD</label>
+          <label><input type="checkbox" value="EUR/GBP"/> EUR/GBP</label>
+          <label><input type="checkbox" value="EUR/JPY"/> EUR/JPY</label>
+          <label><input type="checkbox" value="GBP/JPY"/> GBP/JPY</label>
+          <label><input type="checkbox" value="AUD/JPY"/> AUD/JPY</label>
         </div>
         <div class="subscribe-status" id="subscribe-status" role="status"></div>
       </form>
