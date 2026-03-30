@@ -680,3 +680,145 @@ class TestRootEntrypoint:
         from flask import Flask
         assert isinstance(module.app, Flask)
 
+
+
+# ─── Forex Signal Hub ─────────────────────────────────────────────────────
+
+
+class TestForexRoutes:
+    """Tests for the AI Forex Signal Hub routes and API endpoints."""
+
+    # ── page routes ──
+
+    def test_forex_hub_page(self, client):
+        resp = client.get("/forex")
+        assert resp.status_code == 200
+        assert b"AI Forex Signal Hub" in resp.data
+
+    def test_forex_methodology_page(self, client):
+        resp = client.get("/forex/methodology")
+        assert resp.status_code == 200
+        assert b"Methodology" in resp.data
+
+    # ── /api/forex/signals ──
+
+    def test_signals_default_pair(self, client):
+        resp = client.get("/api/forex/signals")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["pair"] == "EUR/USD"
+        assert data["direction"] in ("BUY", "SELL", "HOLD")
+        assert 0 <= data["confidence"] <= 100
+        assert "entry_price" in data
+        assert "take_profit" in data
+        assert "stop_loss" in data
+        assert "accuracy_30d" in data
+        assert len(data["history"]) == 30
+
+    def test_signals_gbpusd(self, client):
+        resp = client.get("/api/forex/signals?pair=GBP%2FUSD")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["pair"] == "GBP/USD"
+        assert data["direction"] == "SELL"
+
+    def test_signals_usdjpy(self, client):
+        resp = client.get("/api/forex/signals?pair=USD%2FJPY")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["pair"] == "USD/JPY"
+        assert data["direction"] == "HOLD"
+
+    def test_signals_invalid_pair(self, client):
+        resp = client.get("/api/forex/signals?pair=XYZ%2FABC")
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+    def test_signals_history_fields(self, client):
+        resp = client.get("/api/forex/signals")
+        data = json.loads(resp.data)
+        for row in data["history"]:
+            assert "day" in row
+            assert "predicted" in row
+            assert "actual" in row
+            assert "correct" in row
+            assert "entry" in row
+            assert "exit" in row
+
+    def test_signals_accuracy_matches_history(self, client):
+        resp = client.get("/api/forex/signals")
+        data = json.loads(resp.data)
+        expected = round(
+            sum(1 for h in data["history"] if h["correct"]) / len(data["history"]) * 100, 1
+        )
+        assert data["accuracy_30d"] == expected
+
+    # ── /api/forex/news ──
+
+    def test_news_returns_list(self, client):
+        resp = client.get("/api/forex/news")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "news" in data
+        assert len(data["news"]) > 0
+
+    def test_news_item_fields(self, client):
+        resp = client.get("/api/forex/news")
+        data = json.loads(resp.data)
+        for item in data["news"]:
+            assert "headline" in item
+            assert "sentiment" in item
+            assert item["sentiment"] in ("positive", "negative", "neutral")
+            assert "source" in item
+            assert "published_at" in item
+
+    # ── /api/forex/subscribe ──
+
+    def test_subscribe_valid(self, client):
+        resp = client.post(
+            "/api/forex/subscribe",
+            data=json.dumps({"email": "test@example.com", "pairs": ["EUR/USD"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["success"] is True
+
+    def test_subscribe_invalid_email(self, client):
+        resp = client.post(
+            "/api/forex/subscribe",
+            data=json.dumps({"email": "not-an-email", "pairs": ["EUR/USD"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+    def test_subscribe_empty_email(self, client):
+        resp = client.post(
+            "/api/forex/subscribe",
+            data=json.dumps({"email": "", "pairs": ["EUR/USD"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_subscribe_invalid_pair(self, client):
+        resp = client.post(
+            "/api/forex/subscribe",
+            data=json.dumps({"email": "user@test.com", "pairs": ["INVALID/PAIR"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+    def test_subscribe_defaults_all_pairs(self, client):
+        resp = client.post(
+            "/api/forex/subscribe",
+            data=json.dumps({"email": "allpairs@example.com", "pairs": []}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["success"] is True

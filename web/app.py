@@ -18,7 +18,7 @@ import os
 import re
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -790,6 +790,239 @@ def ai_analyze():
         })
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+# ─── Forex Signal Hub ────────────────────────────────────────────────────────
+
+_SUPPORTED_PAIRS = ("EUR/USD", "GBP/USD", "USD/JPY")
+
+_FOREX_SIGNALS: dict[str, dict[str, Any]] = {
+    "EUR/USD": {
+        "direction": "BUY",
+        "confidence": 78.5,
+        "entry_price": 1.0854,
+        "take_profit": 1.0920,
+        "stop_loss": 1.0820,
+        "generated_at": "2026-03-30T09:00:00Z",
+        "model_version": "LightGBM v2.3",
+        "features_used": ["RSI-14", "MACD", "EMA-20", "EMA-50", "News Sentiment", "CPI Delta", "PMI"],
+    },
+    "GBP/USD": {
+        "direction": "SELL",
+        "confidence": 65.2,
+        "entry_price": 1.2634,
+        "take_profit": 1.2560,
+        "stop_loss": 1.2680,
+        "generated_at": "2026-03-30T09:00:00Z",
+        "model_version": "LightGBM v2.3",
+        "features_used": ["RSI-14", "MACD", "EMA-20", "EMA-50", "News Sentiment", "CPI Delta", "PMI"],
+    },
+    "USD/JPY": {
+        "direction": "HOLD",
+        "confidence": 52.1,
+        "entry_price": 151.42,
+        "take_profit": 152.00,
+        "stop_loss": 150.80,
+        "generated_at": "2026-03-30T09:00:00Z",
+        "model_version": "LightGBM v2.3",
+        "features_used": ["RSI-14", "MACD", "EMA-20", "EMA-50", "News Sentiment", "CPI Delta", "PMI"],
+    },
+}
+
+# (predicted, actual, pip_delta) sequences for 30 days – deterministic mock data
+_FOREX_HIST_SEQUENCES: dict[str, tuple[float, float, list[tuple[str, str, int]]]] = {
+    "EUR/USD": (1.0680, 0.0001, [
+        ("BUY", "BUY", 62), ("SELL", "SELL", -44), ("BUY", "BUY", 53), ("HOLD", "BUY", 29),
+        ("BUY", "BUY", 40), ("BUY", "SELL", -30), ("SELL", "SELL", -50), ("SELL", "SELL", -30),
+        ("BUY", "BUY", 50), ("BUY", "BUY", 40), ("HOLD", "HOLD", 8), ("BUY", "BUY", 32),
+        ("SELL", "BUY", 20), ("BUY", "BUY", 30), ("BUY", "SELL", -35), ("SELL", "SELL", -35),
+        ("BUY", "BUY", 30), ("BUY", "BUY", 25), ("HOLD", "HOLD", -3), ("SELL", "SELL", -32),
+        ("SELL", "SELL", -30), ("BUY", "BUY", 35), ("BUY", "BUY", 25), ("HOLD", "BUY", 20),
+        ("BUY", "BUY", 25), ("SELL", "SELL", -40), ("BUY", "BUY", 25), ("BUY", "SELL", -30),
+        ("SELL", "SELL", -30), ("BUY", "BUY", 14),
+    ]),
+    "GBP/USD": (1.2480, 0.0001, [
+        ("SELL", "SELL", -35), ("BUY", "BUY", 42), ("SELL", "SELL", -28), ("BUY", "BUY", 38),
+        ("BUY", "SELL", -22), ("SELL", "SELL", -45), ("BUY", "BUY", 55), ("BUY", "BUY", 30),
+        ("SELL", "SELL", -40), ("HOLD", "HOLD", 5), ("BUY", "BUY", 35), ("SELL", "BUY", 28),
+        ("BUY", "BUY", 42), ("BUY", "SELL", -25), ("SELL", "SELL", -38), ("BUY", "BUY", 32),
+        ("BUY", "BUY", 28), ("HOLD", "HOLD", -4), ("SELL", "SELL", -30), ("BUY", "BUY", 35),
+        ("SELL", "SELL", -42), ("BUY", "BUY", 30), ("BUY", "BUY", 25), ("SELL", "BUY", 20),
+        ("BUY", "BUY", 38), ("SELL", "SELL", -45), ("BUY", "BUY", 28), ("SELL", "SELL", -30),
+        ("BUY", "SELL", -25), ("SELL", "SELL", -26),
+    ]),
+    "USD/JPY": (149.80, 0.01, [
+        ("BUY", "BUY", 35), ("SELL", "BUY", 20), ("BUY", "BUY", 45), ("SELL", "SELL", -38),
+        ("HOLD", "HOLD", 3), ("BUY", "BUY", 42), ("BUY", "SELL", -30), ("SELL", "SELL", -48),
+        ("BUY", "BUY", 55), ("HOLD", "BUY", 25), ("SELL", "SELL", -35), ("BUY", "BUY", 40),
+        ("BUY", "BUY", 30), ("SELL", "SELL", -42), ("BUY", "BUY", 38), ("BUY", "SELL", -28),
+        ("SELL", "SELL", -35), ("HOLD", "HOLD", 5), ("BUY", "BUY", 48), ("SELL", "SELL", -40),
+        ("BUY", "BUY", 35), ("BUY", "BUY", 30), ("SELL", "BUY", 18), ("BUY", "BUY", 42),
+        ("SELL", "SELL", -38), ("BUY", "BUY", 35), ("BUY", "SELL", -25), ("SELL", "SELL", -30),
+        ("BUY", "BUY", 38), ("HOLD", "HOLD", 4),
+    ]),
+}
+
+_FOREX_NEWS: list[dict[str, Any]] = [
+    {
+        "headline": "Federal Reserve signals cautious stance on rate cuts as inflation remains sticky",
+        "sentiment": "negative",
+        "source": "Reuters",
+        "published_at": "2026-03-30T08:45:00Z",
+    },
+    {
+        "headline": "EUR/USD consolidates near 1.0850 ahead of Eurozone CPI data release",
+        "sentiment": "neutral",
+        "source": "FXStreet",
+        "published_at": "2026-03-30T08:00:00Z",
+    },
+    {
+        "headline": "Bank of England holds rates steady, GBP/USD under pressure",
+        "sentiment": "negative",
+        "source": "Bloomberg",
+        "published_at": "2026-03-30T07:30:00Z",
+    },
+    {
+        "headline": "Japan's core CPI rises above expectations, BoJ hawkish bets increase",
+        "sentiment": "positive",
+        "source": "Nikkei",
+        "published_at": "2026-03-30T07:00:00Z",
+    },
+    {
+        "headline": "US Non-Farm Payrolls beat forecasts, USD strengthens across the board",
+        "sentiment": "positive",
+        "source": "MarketWatch",
+        "published_at": "2026-03-30T06:30:00Z",
+    },
+    {
+        "headline": "Eurozone PMI unexpectedly contracts, raising recession fears",
+        "sentiment": "negative",
+        "source": "Reuters",
+        "published_at": "2026-03-30T06:00:00Z",
+    },
+    {
+        "headline": "GBP gains on positive UK retail sales data, trade balance improves",
+        "sentiment": "positive",
+        "source": "FXStreet",
+        "published_at": "2026-03-30T05:45:00Z",
+    },
+    {
+        "headline": "Dollar index holds above 104 as risk sentiment remains fragile",
+        "sentiment": "neutral",
+        "source": "Bloomberg",
+        "published_at": "2026-03-30T05:00:00Z",
+    },
+    {
+        "headline": "ECB policymakers divided on pace of future rate reductions",
+        "sentiment": "neutral",
+        "source": "WSJ",
+        "published_at": "2026-03-30T04:30:00Z",
+    },
+    {
+        "headline": "Yen weakens past 151 as US-Japan yield differential widens further",
+        "sentiment": "negative",
+        "source": "Nikkei",
+        "published_at": "2026-03-30T04:00:00Z",
+    },
+]
+
+# In-memory email subscriber registry (resets on restart)
+_FOREX_SUBSCRIBERS: list[dict[str, Any]] = []
+
+
+def _build_forex_history(pair: str) -> list[dict[str, Any]]:
+    """Return a 30-day list of predicted vs actual signals for the given pair."""
+    base_price, pip, seq = _FOREX_HIST_SEQUENCES[pair]
+    price = base_price
+    decimals = 4 if pip < 0.01 else 2
+    history: list[dict[str, Any]] = []
+    for i, (pred, actual, delta) in enumerate(seq):
+        d = (date(2026, 3, 1) + timedelta(days=i)).isoformat()
+        entry = round(price, decimals)
+        exit_price = round(price + delta * pip, decimals)
+        history.append({
+            "day": d,
+            "predicted": pred,
+            "actual": actual,
+            "correct": pred == actual,
+            "entry": entry,
+            "exit": exit_price,
+        })
+        price = exit_price
+    return history
+
+
+@app.route("/forex")
+def forex_hub():
+    """Render the AI Forex Signal Hub page."""
+    try:
+        return render_template("forex.html")
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/forex/methodology")
+def forex_methodology():
+    """Render the Methodology page for the Forex Signal Hub."""
+    try:
+        return render_template("methodology.html")
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/forex/signals")
+def forex_signals():
+    """Return the current signal + 30-day history for a forex pair."""
+    pair = request.args.get("pair", "EUR/USD")
+    if pair not in _SUPPORTED_PAIRS:
+        return (
+            jsonify({"error": f"Unsupported pair. Choose from: {', '.join(_SUPPORTED_PAIRS)}"}),
+            400,
+        )
+    signal: dict[str, Any] = dict(_FOREX_SIGNALS[pair])
+    signal["pair"] = pair
+    history = _build_forex_history(pair)
+    correct_count = sum(1 for h in history if h["correct"])
+    signal["accuracy_30d"] = round(correct_count / len(history) * 100, 1)
+    signal["history"] = history
+    return jsonify(signal)
+
+
+@app.route("/api/forex/news")
+def forex_news():
+    """Return the latest news sentiment items."""
+    return jsonify({"news": _FOREX_NEWS})
+
+
+@app.route("/api/forex/subscribe", methods=["POST"])
+def forex_subscribe():
+    """Register an email address for signal alerts."""
+    data: dict[str, Any] = request.get_json(force=True) or {}
+    email: str = data.get("email", "").strip().lower()
+    pairs: list[str] = data.get("pairs", [])
+
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        return jsonify({"error": "Please provide a valid email address"}), 400
+
+    invalid = [p for p in pairs if p not in _SUPPORTED_PAIRS]
+    if invalid:
+        return jsonify({"error": f"Unsupported pairs: {', '.join(invalid)}"}), 400
+
+    if not pairs:
+        pairs = list(_SUPPORTED_PAIRS)
+
+    if any(s["email"] == email for s in _FOREX_SUBSCRIBERS):
+        return jsonify({"success": True, "message": "You are already subscribed."})
+
+    _FOREX_SUBSCRIBERS.append({
+        "email": email,
+        "pairs": pairs,
+        "subscribed_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return jsonify({
+        "success": True,
+        "message": "Subscribed! You will receive alerts when new signals are generated.",
+    })
 
 
 if __name__ == "__main__":

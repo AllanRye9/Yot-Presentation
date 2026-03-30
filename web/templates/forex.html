@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Forex Signal Hub</title>
+  <link rel="stylesheet" href="/static/css/forex.css"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='28'>📈</text></svg>"/>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ HEADER ══════════════════════════════════ -->
+<header class="fx-header">
+  <div class="brand">
+    <span>📈</span>
+    <span>AI Forex Signal Hub</span>
+  </div>
+  <nav class="fx-nav">
+    <a href="/forex/methodology">Methodology</a>
+    <a href="/" class="btn-outline">← Yot-Presentation</a>
+  </nav>
+</header>
+
+<!-- ═══════════════════════════════ MAIN ════════════════════════════════════ -->
+<main class="fx-main">
+
+  <!-- 1. Pair Selector ─────────────────────────────────────────────────────── -->
+  <section>
+    <div class="fx-pair-bar">
+      <label for="pair-select" style="font-size:.9rem;color:var(--text2)">Currency Pair:</label>
+      <select id="pair-select" class="fx-pair-select" aria-label="Select currency pair">
+        <option value="EUR/USD">EUR/USD – Euro / US Dollar</option>
+        <option value="GBP/USD">GBP/USD – British Pound / US Dollar</option>
+        <option value="USD/JPY">USD/JPY – US Dollar / Japanese Yen</option>
+      </select>
+      <button id="btn-refresh" class="fx-refresh-btn" type="button" title="Refresh signal">
+        <span class="refresh-icon">↻</span> Refresh
+      </button>
+      <span id="last-updated" class="fx-last-updated"></span>
+    </div>
+  </section>
+
+  <!-- 2. Live Signal Dashboard ─────────────────────────────────────────────── -->
+  <section>
+    <div class="fx-section-title">📊 Live Signal</div>
+    <div class="fx-signal-card">
+      <!-- Direction badge -->
+      <div id="signal-direction" class="signal-direction-badge HOLD">
+        <span id="direction-arrow">→</span>
+        HOLD
+      </div>
+
+      <!-- Signal metadata -->
+      <div class="signal-meta">
+        <!-- Confidence row -->
+        <div class="signal-confidence-row">
+          <span class="label">Confidence</span>
+          <div class="confidence-bar">
+            <div class="confidence-fill HOLD" id="confidence-fill" style="width:52.1%"></div>
+          </div>
+          <span class="confidence-pct" id="confidence-pct">52.1%</span>
+        </div>
+
+        <!-- 30-day accuracy -->
+        <div class="signal-accuracy-row" id="accuracy-30d">30-day model accuracy: <strong>–</strong></div>
+
+        <!-- Price levels -->
+        <div class="signal-levels">
+          <div class="signal-level entry">
+            <span class="level-label">Entry Price</span>
+            <span class="level-value" id="entry-price">–</span>
+          </div>
+          <div class="signal-level tp">
+            <span class="level-label">Take Profit</span>
+            <span class="level-value" id="take-profit">–</span>
+          </div>
+          <div class="signal-level sl">
+            <span class="level-label">Stop Loss</span>
+            <span class="level-value" id="stop-loss">–</span>
+          </div>
+        </div>
+
+        <!-- Model info -->
+        <div class="signal-model-row">
+          <span style="color:var(--text2)">Model:</span>
+          <span id="model-version" style="color:var(--text)"></span>
+          &nbsp;·&nbsp;
+          <span style="color:var(--text2)">Features:</span>
+          <span id="features-list"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. AI Explanation & Transparency ────────────────────────────────────── -->
+  <section>
+    <div class="fx-section-title">🧠 How Our AI Works</div>
+    <div class="fx-explanation">
+      <p>
+        Our AI analyzes 10+ years of historical price data, real-time news sentiment,
+        and economic events using machine learning to generate buy/sell/hold signals.
+        The model is retrained weekly using fresh market data collected automatically
+        via Zapier from Yahoo Finance.
+      </p>
+      <p>
+        The pipeline uses a <strong>LightGBM</strong> gradient-boosted tree model trained
+        on features including RSI, MACD, exponential moving averages (EMA-20/50),
+        news sentiment scores, CPI delta, and PMI readings. Training data is stored in
+        Google Sheets and the Colab notebook runs on Google's free GPU runtime.
+        Predictions are written back to the Predictions sheet and displayed here in real time.
+      </p>
+      <p>
+        All tools used are free-tier: Google Sheets · Google Colab · Zapier ·
+        Twelve Data · NewsAPI · Google Data Studio.
+        See the <a href="/forex/methodology">Methodology page</a> for full details.
+      </p>
+      <div class="fx-disclaimer">
+        ⚠️ <strong>Disclaimer:</strong> For educational purposes only. Not financial advice.
+        Forex trading involves significant risk of loss. Past signal accuracy does not
+        guarantee future results. Always conduct your own analysis before trading.
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Historical Accuracy Chart ────────────────────────────────────────── -->
+  <section>
+    <div class="fx-section-title">📉 Historical Accuracy – Last 30 Days</div>
+    <div class="fx-chart-wrap">
+      <canvas id="accuracy-chart" height="220" aria-label="Historical price and prediction accuracy chart"></canvas>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-line"></div> Actual exit price</div>
+        <div class="legend-item"><div class="legend-dot correct"></div> Correct prediction</div>
+        <div class="legend-item"><div class="legend-dot incorrect"></div> Incorrect prediction</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Real-Time News Sentiment Feed ────────────────────────────────────── -->
+  <section>
+    <div class="fx-section-title">📰 News Sentiment Feed</div>
+    <div class="fx-news-wrap">
+      <div id="news-loading">Loading headlines…</div>
+      <div id="news-list"></div>
+    </div>
+  </section>
+
+  <!-- 6. Alert Subscription ───────────────────────────────────────────────── -->
+  <section>
+    <div class="fx-section-title">🔔 Get Signal Alerts</div>
+    <div class="fx-subscribe">
+      <p>
+        Receive an email the moment a new AI signal is generated for your chosen
+        currency pairs. Alerts are delivered via Twilio SendGrid (free tier) and
+        triggered automatically by Zapier when the Predictions sheet is updated.
+      </p>
+      <form class="subscribe-form" id="subscribe-form" novalidate>
+        <div class="email-row">
+          <input
+            type="email"
+            id="email-input"
+            class="email-input"
+            placeholder="your@email.com"
+            autocomplete="email"
+            aria-label="Email address"
+          />
+          <button type="submit" class="btn-subscribe">Subscribe</button>
+        </div>
+        <div class="pair-checkboxes" aria-label="Select pairs to receive alerts for">
+          <label><input type="checkbox" value="EUR/USD" checked/> EUR/USD</label>
+          <label><input type="checkbox" value="GBP/USD"/> GBP/USD</label>
+          <label><input type="checkbox" value="USD/JPY"/> USD/JPY</label>
+        </div>
+        <div class="subscribe-status" id="subscribe-status" role="status"></div>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<script src="/static/js/forex.js"></script>
+</body>
+</html>
