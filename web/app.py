@@ -1053,8 +1053,9 @@ def _compute_signal_from_prices(prices: list[float]) -> tuple[str, float]:
 
 def _compute_tp_sl_pips(prices: list[float], pair: str) -> tuple[int, int]:
     """Return ``(tp_pips, sl_pips)`` derived from the recent average daily range."""
+    is_gold = pair == "XAU/USD"
     is_jpy = "JPY" in pair
-    pip = 0.01 if is_jpy else 0.0001
+    pip = 1.0 if is_gold else (0.01 if is_jpy else 0.0001)
     if len(prices) < 2:
         return 50, 30
     daily_ranges = [abs(prices[i] - prices[i - 1]) for i in range(1, len(prices))]
@@ -1072,8 +1073,9 @@ def _build_forex_history_live(
     and a deterministically generated (but plausible) predicted direction so
     that the accuracy metric has something to compare against.
     """
+    is_gold = pair == "XAU/USD"
     is_jpy = "JPY" in pair
-    dec = 2 if is_jpy else 4
+    dec = 2 if (is_jpy or is_gold) else 4
     dates = sorted(hist_rates.keys())
     prices = [hist_rates[d] for d in dates]
     history: list[dict[str, Any]] = []
@@ -1108,6 +1110,8 @@ _SUPPORTED_PAIRS = (
     # Cross / hybrid pairs (no USD)
     "EUR/GBP", "EUR/JPY", "EUR/AUD", "EUR/CAD",
     "GBP/JPY", "GBP/CHF", "AUD/JPY",
+    # Commodity pair
+    "XAU/USD",
 )
 
 
@@ -1279,6 +1283,16 @@ _FOREX_SIGNALS: dict[str, dict[str, Any]] = {
         "model_version": "LightGBM v2.3",
         "features_used": _FEATURES_DEFAULT,
     },
+    "XAU/USD": {
+        "direction": "BUY",
+        "confidence": 71.4,
+        "entry_price": 2320.50,
+        "take_profit": 2360.00,
+        "stop_loss": 2298.00,
+        "generated_at": "2026-03-30T09:00:00Z",
+        "model_version": "LightGBM v2.3",
+        "features_used": _FEATURES_DEFAULT,
+    },
 }
 
 # (base_price, pip_size, sequence) – sequences for the original 3 pairs are
@@ -1325,6 +1339,7 @@ _FOREX_HIST_SEQUENCES: dict[str, tuple[float, float, list[tuple[str, str, int]]]
     "GBP/JPY": (189.40, 0.01,   _gen_seq("GBP/JPY")),
     "GBP/CHF": (1.1410, 0.0001, _gen_seq("GBP/CHF")),
     "AUD/JPY": (98.20,  0.01,   _gen_seq("AUD/JPY")),
+    "XAU/USD": (2250.00, 1.0,   _gen_seq("XAU/USD")),
 }
 
 _FOREX_NEWS: list[dict[str, Any]] = [
@@ -1426,9 +1441,10 @@ def _build_technical_analysis(pair: str, live_price: float | None = None) -> dic
     signal = _FOREX_SIGNALS[pair]
     price = live_price if live_price is not None else signal["entry_price"]
     direction = signal["direction"]
+    is_gold = pair == "XAU/USD"
     is_jpy = "JPY" in pair
-    pip = 0.01 if is_jpy else 0.0001
-    dec = 2 if is_jpy else 4
+    pip = 1.0 if is_gold else (0.01 if is_jpy else 0.0001)
+    dec = 2 if (is_jpy or is_gold) else 4
 
     def lvl(pips: float) -> float:
         return round(price + pips * pip, dec)
@@ -1589,9 +1605,10 @@ def forex_signals():
             signal["direction"] = direction
             signal["confidence"] = confidence
 
+            is_gold = pair == "XAU/USD"
             is_jpy = "JPY" in pair
-            pip = 0.01 if is_jpy else 0.0001
-            dec = 2 if is_jpy else 4
+            pip = 1.0 if is_gold else (0.01 if is_jpy else 0.0001)
+            dec = 2 if (is_jpy or is_gold) else 4
             tp_pips, sl_pips = _compute_tp_sl_pips(prices, pair)
 
             if direction == "BUY":
@@ -1640,8 +1657,9 @@ def forex_technical():
 def forex_pairs():
     """Return the list of supported currency pairs grouped by type."""
     return jsonify({
-        "major": [p for p in _SUPPORTED_PAIRS if "USD" in p.split("/")],
-        "cross":  [p for p in _SUPPORTED_PAIRS if "USD" not in p.split("/")],
+        "major": [p for p in _SUPPORTED_PAIRS if "USD" in p.split("/") and not p.startswith("XAU")],
+        "cross":  [p for p in _SUPPORTED_PAIRS if "USD" not in p.split("/") and not p.startswith("XAU")],
+        "commodity": [p for p in _SUPPORTED_PAIRS if p.startswith("XAU")],
         "all": list(_SUPPORTED_PAIRS),
     })
 
