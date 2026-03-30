@@ -16,6 +16,7 @@ const REFRESH_INTERVAL_MS = 60_000; // 1 minute
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const pairSelect      = document.getElementById('pair-select');
 const lastUpdatedEl   = document.getElementById('last-updated');
+const dataSourceBadge = document.getElementById('data-source-badge');
 const refreshBtn      = document.getElementById('btn-refresh');
 const directionBadge  = document.getElementById('signal-direction');
 const directionArrow  = document.getElementById('direction-arrow');
@@ -139,8 +140,14 @@ function renderSignal(data) {
       .join('');
   }
 
-  // Last updated
+  // Last updated + data source badge
   lastUpdatedEl.textContent = `Updated: ${formatDate(data.generated_at)}`;
+  if (dataSourceBadge) {
+    const isLive = data.is_live === true;
+    dataSourceBadge.textContent = isLive ? '🟢 Live' : '🟡 Cached';
+    dataSourceBadge.className = `fx-data-source ${isLive ? 'live' : 'static'}`;
+    dataSourceBadge.title = data.data_source || '';
+  }
 }
 
 function formatPrice(price, pair) {

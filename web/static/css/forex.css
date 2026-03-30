@@ -130,6 +130,24 @@ a:hover { text-decoration: underline; }
   margin-left: auto;
 }
 
+.fx-data-source {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.fx-data-source.live {
+  color: var(--accent2);
+  border-color: var(--accent2);
+  background: rgba(63, 185, 80, 0.08);
+}
+.fx-data-source.static {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: rgba(210, 153, 34, 0.08);
+}
+
 .fx-refresh-btn {
   background: var(--surface2);
   border: 1px solid var(--border);
