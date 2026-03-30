@@ -1,7 +1,8 @@
 /**
  * AI Forex Signal Hub – Frontend Logic
  * Handles: pair selection, signal display, accuracy chart, news feed,
- * alert subscription form and auto-refresh.
+ * risk management calculator, technical analysis, alert subscription,
+ * and auto-refresh.
  */
 
 'use strict';
@@ -33,6 +34,34 @@ const emailInput      = document.getElementById('email-input');
 const subscribeStatus = document.getElementById('subscribe-status');
 const chartCanvas     = document.getElementById('accuracy-chart');
 
+// Risk calculator DOM refs
+const calcBalance   = document.getElementById('calc-balance');
+const calcRiskPct   = document.getElementById('calc-risk-pct');
+const calcEntry     = document.getElementById('calc-entry');
+const calcSl        = document.getElementById('calc-sl');
+const calcTp        = document.getElementById('calc-tp');
+const calcLeverage  = document.getElementById('calc-leverage');
+const calcLotType   = document.getElementById('calc-lot-type');
+
+// Risk result DOM refs
+const resRiskAmount   = document.getElementById('res-risk-amount');
+const resPositionSize = document.getElementById('res-position-size');
+const resPipValue     = document.getElementById('res-pip-value');
+const resPipsSl       = document.getElementById('res-pips-sl');
+const resPipsTp       = document.getElementById('res-pips-tp');
+const resRr           = document.getElementById('res-rr');
+const resProfit       = document.getElementById('res-profit');
+const resMargin       = document.getElementById('res-margin');
+
+// Technical analysis DOM refs
+const taLoading       = document.getElementById('ta-loading');
+const taContent       = document.getElementById('ta-content');
+const taSrContent     = document.getElementById('ta-sr-content');
+const taFvgContent    = document.getElementById('ta-fvg-content');
+const taBosContent    = document.getElementById('ta-bos-content');
+const taChochContent  = document.getElementById('ta-choch-content');
+const taVolumeContent = document.getElementById('ta-volume-content');
+
 // ─── Utility ──────────────────────────────────────────────────────────────────
 function formatDate(isoStr) {
   try {
@@ -48,6 +77,18 @@ function sentimentIcon(s) {
   return s === 'positive' ? '📈' : s === 'negative' ? '📉' : '➡️';
 }
 
+function isJpy(pair) {
+  return pair && pair.includes('JPY');
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // ─── Signal display ───────────────────────────────────────────────────────────
 async function loadSignal(pair) {
   refreshBtn.classList.add('spinning');
@@ -57,6 +98,11 @@ async function loadSignal(pair) {
     signalData = await res.json();
     renderSignal(signalData);
     drawChart(signalData.history);
+    // Auto-fill calculator with signal levels
+    autoFillCalculator(signalData);
+    runCalculator();
+    // Load technical analysis for this pair
+    loadTechnicalAnalysis(pair);
   } catch (err) {
     console.error('Failed to load signal:', err);
   } finally {
@@ -98,8 +144,7 @@ function renderSignal(data) {
 }
 
 function formatPrice(price, pair) {
-  // JPY pairs use 2 decimal places; others use 4
-  const decimals = pair && pair.includes('JPY') ? 2 : 4;
+  const decimals = isJpy(pair) ? 2 : 4;
   return Number(price).toFixed(decimals);
 }
 
@@ -191,6 +236,194 @@ function drawChart(history) {
   ctx.moveTo(PAD.left - 4, PAD.top + ch); ctx.lineTo(PAD.left + cw, PAD.top + ch); ctx.stroke();
 }
 
+// ─── Risk Management Calculator ───────────────────────────────────────────────
+
+/** Approximate pip value in USD per standard lot for a given pair/price.
+ *
+ * Pip sizes:  non-JPY = 0.0001 (1/10,000), JPY = 0.01 (1/100)
+ * Standard lot = 100,000 units
+ *
+ * Formula by quote currency:
+ *   - Quote is USD (e.g. EUR/USD):  pipValue = pipSize × lotSize  → always $10
+ *   - Base  is USD (e.g. USD/JPY):  pipValue = (pipSize × lotSize) / entryPrice
+ *   - JPY cross (e.g. EUR/JPY):     pipValue ≈ (pipSize × lotSize) / entryPrice × 100
+ *       The ×100 converts the yen-denominated pip to USD via the implicit $/¥ rate
+ *       (approximated as entryPrice / 100 because JPY crosses trade near ¥100–200).
+ *   - Other crosses:                approximated as $10 (same as quote-USD pairs)
+ */
+function pipValuePerStdLot(pair, entryPriceVal) {
+  const LOT = 100_000;
+  const jpy = isJpy(pair);
+  const pipSize = jpy ? 0.01 : 0.0001;
+  const parts = pair.split('/');
+  const quoteCcy = parts[1];
+  const baseCcy  = parts[0];
+
+  // If quote currency is USD → pip value = pipSize * LOT (always $10 for std lot)
+  if (quoteCcy === 'USD') return pipSize * LOT;
+  // If base currency is USD → pip value = pipSize * LOT / entryPrice
+  if (baseCcy === 'USD') return (pipSize * LOT) / entryPriceVal;
+  // Cross pairs: approximate using mid-market (simplified)
+  if (jpy) return (pipSize * LOT) / entryPriceVal * 100; // rough approx for JPY crosses
+  return pipSize * LOT; // fallback approximation
+}
+
+function autoFillCalculator(data) {
+  if (data.entry_price) calcEntry.value = data.entry_price;
+  if (data.stop_loss)   calcSl.value    = data.stop_loss;
+  if (data.take_profit) calcTp.value    = data.take_profit;
+}
+
+function runCalculator() {
+  const balance   = parseFloat(calcBalance.value)  || 0;
+  const riskPct   = parseFloat(calcRiskPct.value)  || 0;
+  const entry     = parseFloat(calcEntry.value)    || 0;
+  const sl        = parseFloat(calcSl.value)       || 0;
+  const tp        = parseFloat(calcTp.value)       || 0;
+  const leverage  = parseFloat(calcLeverage.value) || 100;
+  const lotType   = calcLotType.value;
+
+  const lotMultiplier = lotType === 'standard' ? 1 : lotType === 'mini' ? 0.1 : 0.01;
+
+  if (!balance || !riskPct || !entry || !sl) {
+    [resRiskAmount, resPositionSize, resPipValue, resPipsSl, resPipsTp, resRr, resProfit, resMargin]
+      .forEach(el => { if (el) el.textContent = '–'; });
+    return;
+  }
+
+  const pair = currentPair;
+  const jpy  = isJpy(pair);
+  const pipSize = jpy ? 0.01 : 0.0001;
+
+  const riskAmount = balance * (riskPct / 100);
+  const pipsSl     = Math.abs(entry - sl) / pipSize;
+  const pipsTp     = tp ? Math.abs(tp - entry) / pipSize : 0;
+
+  const pvPerStdLot = pipValuePerStdLot(pair, entry);
+  // pip value adjusted for lot type
+  const pvPerLot    = pvPerStdLot * lotMultiplier;
+
+  // Position size in lots
+  const positionLots = pipsSl > 0 ? riskAmount / (pipsSl * pvPerLot) : 0;
+  const positionUnits = positionLots * 100_000 * lotMultiplier;
+
+  // RR ratio
+  const rr = pipsSl > 0 && pipsTp > 0 ? pipsTp / pipsSl : 0;
+
+  // Potential profit
+  const potentialProfit = positionLots * pipsTp * pvPerLot;
+
+  // Required margin = (positionUnits * entry) / leverage
+  const margin = (positionUnits * entry) / leverage;
+
+  // Update UI
+  resRiskAmount.textContent   = `$${riskAmount.toFixed(2)}`;
+  resPositionSize.textContent = `${positionLots.toFixed(2)} lots`;
+  resPipValue.textContent     = `$${pvPerLot.toFixed(2)}`;
+  resPipsSl.textContent       = `${pipsSl.toFixed(1)} pips`;
+  resPipsTp.textContent       = tp ? `${pipsTp.toFixed(1)} pips` : '–';
+  resRr.textContent           = rr > 0 ? `1 : ${rr.toFixed(2)}` : '–';
+  resProfit.textContent       = potentialProfit > 0 ? `$${potentialProfit.toFixed(2)}` : '–';
+  resMargin.textContent       = `$${margin.toFixed(2)}`;
+
+  // Color RR ratio
+  resRr.className = 'risk-result-value rr-value';
+  if (rr >= 2) resRr.classList.add('buy');
+  else if (rr > 0 && rr < 1) resRr.classList.add('sell');
+}
+
+// Attach calculator listeners
+[calcBalance, calcRiskPct, calcEntry, calcSl, calcTp, calcLeverage, calcLotType]
+  .forEach(el => { if (el) el.addEventListener('input', runCalculator); });
+
+// ─── Technical Analysis ───────────────────────────────────────────────────────
+async function loadTechnicalAnalysis(pair) {
+  taLoading.style.display = 'block';
+  taContent.style.display = 'none';
+  try {
+    const res = await fetch(`/api/forex/technical?pair=${encodeURIComponent(pair)}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    renderTechnicalAnalysis(data);
+  } catch (err) {
+    taLoading.textContent = 'Could not load technical analysis.';
+    console.error('Failed to load technical analysis:', err);
+  }
+}
+
+function renderTechnicalAnalysis(data) {
+  const dec = isJpy(data.pair) ? 2 : 4;
+  const fmt = v => Number(v).toFixed(dec);
+
+  // Support & Resistance
+  const sr = data.support_resistance;
+  taSrContent.innerHTML = `
+    <div class="sr-group">
+      <div class="sr-group-title resistance-title">Resistance</div>
+      ${sr.resistance.slice().reverse().map(r => `
+        <div class="sr-level resistance">
+          <span class="sr-badge">R</span>
+          <span class="sr-price">${fmt(r)}</span>
+        </div>`).join('')}
+      <div class="sr-current">
+        <span class="sr-badge current-badge">●</span>
+        <span class="sr-price current-price">Current: ${fmt(data.current_price)}</span>
+      </div>
+      ${sr.support.map(s => `
+        <div class="sr-level support">
+          <span class="sr-badge">S</span>
+          <span class="sr-price">${fmt(s)}</span>
+        </div>`).join('')}
+    </div>`;
+
+  // Fair Value Gaps
+  taFvgContent.innerHTML = data.fvg.map(g => `
+    <div class="ta-item ${g.type} ${g.filled ? 'filled' : 'unfilled'}">
+      <div class="ta-item-header">
+        <span class="ta-badge ${g.type}">${g.type.toUpperCase()} FVG</span>
+        <span class="ta-badge ${g.filled ? 'neutral' : 'active'}">${g.filled ? 'Filled' : 'Unfilled'}</span>
+        <span class="ta-date">${g.created}</span>
+      </div>
+      <div class="ta-price-range">${fmt(g.bottom)} – ${fmt(g.top)}</div>
+      <div class="ta-desc">${escapeHtml(g.description)}</div>
+    </div>`).join('');
+
+  // Break of Structure
+  taBosContent.innerHTML = data.bos.map(b => `
+    <div class="ta-item ${b.type}">
+      <div class="ta-item-header">
+        <span class="ta-badge ${b.type}">${b.type.toUpperCase()} BOS</span>
+        <span class="ta-date">${b.date}</span>
+      </div>
+      <div class="ta-price-single">${fmt(b.level)}</div>
+      <div class="ta-desc">${escapeHtml(b.description)}</div>
+    </div>`).join('');
+
+  // CHoCH
+  taChochContent.innerHTML = data.choch.map(c => `
+    <div class="ta-item ${c.type}">
+      <div class="ta-item-header">
+        <span class="ta-badge ${c.type}">CHoCH</span>
+        <span class="ta-date">${c.date}</span>
+      </div>
+      <div class="ta-price-single">${fmt(c.level)}</div>
+      <div class="ta-desc">${escapeHtml(c.description)}</div>
+    </div>`).join('');
+
+  // High Volume Zones
+  taVolumeContent.innerHTML = data.high_volume_zones.map(z => `
+    <div class="ta-item volume-zone ${z.strength}">
+      <div class="ta-item-header">
+        <span class="ta-badge volume-${z.strength}">${z.strength.toUpperCase()} VOLUME</span>
+        <span class="ta-price-range">${fmt(z.bottom)} – ${fmt(z.top)}</span>
+      </div>
+      <div class="ta-desc">${escapeHtml(z.description)}</div>
+    </div>`).join('');
+
+  taLoading.style.display = 'none';
+  taContent.style.display = 'grid';
+}
+
 // ─── News Feed ────────────────────────────────────────────────────────────────
 async function loadNews() {
   try {
@@ -218,14 +451,6 @@ function renderNews(items) {
         </div>
       </div>
     </div>`).join('');
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 // ─── Alert Subscription ───────────────────────────────────────────────────────

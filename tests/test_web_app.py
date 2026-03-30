@@ -822,3 +822,142 @@ class TestForexRoutes:
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data["success"] is True
+
+
+class TestForexExpanded:
+    """Tests for expanded pair list, technical analysis, and new API endpoints."""
+
+    @pytest.fixture
+    def client(self):
+        from web.app import app
+        app.config["TESTING"] = True
+        with app.test_client() as c:
+            yield c
+
+    # ── expanded pair list ──
+
+    def test_all_major_pairs_return_signals(self, client):
+        major = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"]
+        for pair in major:
+            resp = client.get(f"/api/forex/signals?pair={pair.replace('/', '%2F')}")
+            assert resp.status_code == 200, f"Failed for {pair}"
+            data = json.loads(resp.data)
+            assert data["pair"] == pair
+            assert data["direction"] in ("BUY", "SELL", "HOLD")
+
+    def test_cross_pairs_return_signals(self, client):
+        crosses = ["EUR/GBP", "EUR/JPY", "EUR/AUD", "EUR/CAD", "GBP/JPY", "GBP/CHF", "AUD/JPY"]
+        for pair in crosses:
+            resp = client.get(f"/api/forex/signals?pair={pair.replace('/', '%2F')}")
+            assert resp.status_code == 200, f"Failed for {pair}"
+            data = json.loads(resp.data)
+            assert data["pair"] == pair
+            assert "entry_price" in data
+            assert "stop_loss" in data
+            assert "take_profit" in data
+            assert len(data["history"]) == 30
+
+    def test_all_pairs_have_history(self, client):
+        all_pairs = [
+            "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
+            "EUR/GBP", "EUR/JPY", "EUR/AUD", "EUR/CAD", "GBP/JPY", "GBP/CHF", "AUD/JPY",
+        ]
+        for pair in all_pairs:
+            resp = client.get(f"/api/forex/signals?pair={pair.replace('/', '%2F')}")
+            data = json.loads(resp.data)
+            assert len(data["history"]) == 30, f"History length wrong for {pair}"
+            for row in data["history"]:
+                assert "day" in row and "correct" in row and "entry" in row and "exit" in row
+
+    # ── /api/forex/technical ──
+
+    def test_technical_eurusd_default(self, client):
+        resp = client.get("/api/forex/technical")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["pair"] == "EUR/USD"
+
+    def test_technical_fields_present(self, client):
+        resp = client.get("/api/forex/technical")
+        data = json.loads(resp.data)
+        assert "support_resistance" in data
+        assert "fvg" in data
+        assert "bos" in data
+        assert "choch" in data
+        assert "high_volume_zones" in data
+        assert "current_price" in data
+        assert "generated_at" in data
+
+    def test_technical_sr_structure(self, client):
+        resp = client.get("/api/forex/technical")
+        data = json.loads(resp.data)
+        sr = data["support_resistance"]
+        assert "support" in sr and "resistance" in sr
+        assert len(sr["support"]) >= 2
+        assert len(sr["resistance"]) >= 2
+        # Resistance levels should be above current price
+        for r in sr["resistance"]:
+            assert r > data["current_price"]
+        # Support levels should be below current price
+        for s in sr["support"]:
+            assert s < data["current_price"]
+
+    def test_technical_fvg_structure(self, client):
+        resp = client.get("/api/forex/technical")
+        data = json.loads(resp.data)
+        for fvg in data["fvg"]:
+            assert fvg["type"] in ("bullish", "bearish")
+            assert isinstance(fvg["filled"], bool)
+            assert "top" in fvg and "bottom" in fvg
+            assert "description" in fvg
+
+    def test_technical_bos_structure(self, client):
+        resp = client.get("/api/forex/technical")
+        data = json.loads(resp.data)
+        for bos in data["bos"]:
+            assert bos["type"] in ("bullish", "bearish")
+            assert "level" in bos and "date" in bos and "description" in bos
+
+    def test_technical_choch_structure(self, client):
+        resp = client.get("/api/forex/technical")
+        data = json.loads(resp.data)
+        for c in data["choch"]:
+            assert c["type"] in ("bullish", "bearish")
+            assert "level" in c and "date" in c and "description" in c
+
+    def test_technical_volume_zones_structure(self, client):
+        resp = client.get("/api/forex/technical")
+        data = json.loads(resp.data)
+        for zone in data["high_volume_zones"]:
+            assert "top" in zone and "bottom" in zone
+            assert zone["strength"] in ("high", "medium", "low")
+            assert "description" in zone
+
+    def test_technical_all_pairs(self, client):
+        all_pairs = [
+            "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
+            "EUR/GBP", "EUR/JPY", "EUR/AUD", "EUR/CAD", "GBP/JPY", "GBP/CHF", "AUD/JPY",
+        ]
+        for pair in all_pairs:
+            resp = client.get(f"/api/forex/technical?pair={pair.replace('/', '%2F')}")
+            assert resp.status_code == 200, f"Technical endpoint failed for {pair}"
+            data = json.loads(resp.data)
+            assert data["pair"] == pair
+            assert "fvg" in data
+
+    def test_technical_invalid_pair(self, client):
+        resp = client.get("/api/forex/technical?pair=FAKE%2FPAIR")
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+    # ── /api/forex/pairs ──
+
+    def test_pairs_endpoint(self, client):
+        resp = client.get("/api/forex/pairs")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "major" in data and "cross" in data and "all" in data
+        assert len(data["all"]) == 14
+        assert "EUR/USD" in data["major"]
+        assert "EUR/GBP" in data["cross"]
