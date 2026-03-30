@@ -2,16 +2,236 @@
  * AI Forex Signal Hub – Frontend Logic
  * Handles: pair selection, signal display, accuracy chart, news feed,
  * risk management calculator, technical analysis, alert subscription,
- * and auto-refresh.
+ * auto-refresh, tab navigation, sound notifications, gamification,
+ * and per-pair success rate tracking.
  */
 
 'use strict';
 
 // ─── State ───────────────────────────────────────────────────────────────────
-let currentPair = 'EUR/USD';
-let signalData = null;
-let refreshTimer = null;
-const REFRESH_INTERVAL_MS = 60_000; // 1 minute
+let currentPair       = 'EUR/USD';
+let signalData        = null;
+let refreshTimer      = null;
+let previousDirection = null;
+let soundEnabled      = true;
+const REFRESH_INTERVAL_MS   = 60_000; // 1 minute
+const PAIR_FETCH_DELAY_MS   = 120;    // delay between sequential pair API calls (rate-limit friendly)
+
+// ─── Gamification state (persisted in localStorage) ──────────────────────────
+const GAME_KEY = 'fxHubGame';
+let gameState  = loadGameState();
+
+function loadGameState() {
+  try {
+    return JSON.parse(localStorage.getItem(GAME_KEY)) || defaultGameState();
+  } catch {
+    return defaultGameState();
+  }
+}
+
+function defaultGameState() {
+  return { xp: 0, level: 1, streak: 0, signalsWatched: 0, badges: [] };
+}
+
+function saveGameState() {
+  try { localStorage.setItem(GAME_KEY, JSON.stringify(gameState)); } catch { /* ignore */ }
+}
+
+// XP thresholds per level (cumulative)
+const XP_PER_LEVEL = 100;
+
+function addXp(amount, label) {
+  gameState.xp += amount;
+  const newLevel = Math.floor(gameState.xp / XP_PER_LEVEL) + 1;
+  if (newLevel > gameState.level) {
+    gameState.level = newLevel;
+    showToast('toast-achievement', '🎖️', `Level ${newLevel} Reached!`,
+      `You've earned ${gameState.xp} XP total. Keep watching signals!`);
+  }
+  saveGameState();
+  updateGameBar();
+}
+
+function checkAndAwardBadge(id, emoji, name, condition) {
+  if (condition && !gameState.badges.includes(id)) {
+    gameState.badges.push(id);
+    saveGameState();
+    renderBadges();
+    showToast('toast-achievement', emoji, `Badge Unlocked: ${name}`, '');
+  }
+}
+
+function updateGameBar() {
+  const xpInLevel   = gameState.xp % XP_PER_LEVEL;
+  const xpPct       = (xpInLevel / XP_PER_LEVEL) * 100;
+  const xpBarFill   = document.getElementById('xp-bar-fill');
+  const xpValueEl   = document.getElementById('xp-value');
+  const streakEl    = document.getElementById('streak-value');
+  const watchedEl   = document.getElementById('signals-watched');
+  if (xpBarFill)  xpBarFill.style.width = `${xpPct}%`;
+  if (xpValueEl)  xpValueEl.textContent = `${gameState.xp} (Lv ${gameState.level})`;
+  if (streakEl)   streakEl.textContent  = gameState.streak;
+  if (watchedEl)  watchedEl.textContent = gameState.signalsWatched;
+}
+
+function renderBadges() {
+  const container = document.getElementById('gamebar-badges');
+  if (!container) return;
+  const BADGE_MAP = {
+    first_signal:  { e: '👀', t: 'First Signal' },
+    first_buy:     { e: '🟢', t: 'First BUY' },
+    first_sell:    { e: '🔴', t: 'First SELL' },
+    streak_3:      { e: '🔥', t: '3-Signal Streak' },
+    streak_5:      { e: '⚡', t: '5-Signal Streak' },
+    watched_10:    { e: '🏅', t: '10 Signals Watched' },
+    watched_50:    { e: '🏆', t: '50 Signals Watched' },
+    sound_on:      { e: '🔊', t: 'Sound On' },
+    high_conf:     { e: '💎', t: 'High Confidence Signal' },
+  };
+  container.innerHTML = gameState.badges
+    .filter(id => BADGE_MAP[id])
+    .map(id => {
+      const b = BADGE_MAP[id];
+      return `<span class="achievement-badge" title="${b.t}">${b.e}</span>`;
+    }).join('');
+}
+
+// ─── Sound Notifications (Web Audio API) ─────────────────────────────────────
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch {
+      return null;
+    }
+  }
+  return audioCtx;
+}
+
+/**
+ * Play a short chime.
+ * @param {'buy'|'sell'|'hold'|'refresh'|'achievement'} type
+ */
+function playSignalSound(type) {
+  if (!soundEnabled) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+
+  // Resume suspended context (autoplay policy)
+  if (ctx.state === 'suspended') ctx.resume();
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  const SOUNDS = {
+    buy:         { freqs: [440, 554, 659], dur: 0.12, wave: 'sine' },
+    sell:        { freqs: [659, 554, 440], dur: 0.12, wave: 'sine' },
+    hold:        { freqs: [440, 440],      dur: 0.15, wave: 'triangle' },
+    refresh:     { freqs: [523],           dur: 0.08, wave: 'sine' },
+    achievement: { freqs: [523, 659, 784, 1047], dur: 0.1, wave: 'sine' },
+  };
+
+  const s = SOUNDS[type] || SOUNDS.refresh;
+  gain.gain.setValueAtTime(0.18, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + s.freqs.length * s.dur + 0.05);
+  osc.type = s.wave;
+
+  s.freqs.forEach((freq, i) => {
+    osc.frequency.setValueAtTime(freq, now + i * s.dur);
+  });
+
+  osc.start(now);
+  osc.stop(now + s.freqs.length * s.dur + 0.06);
+}
+
+// Sound toggle
+const soundBtn = document.getElementById('btn-sound');
+if (soundBtn) {
+  soundBtn.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    soundBtn.textContent = soundEnabled ? '🔔' : '🔕';
+    soundBtn.classList.toggle('muted', !soundEnabled);
+    soundBtn.setAttribute('aria-pressed', soundEnabled ? 'true' : 'false');
+    if (soundEnabled) {
+      playSignalSound('refresh');
+      checkAndAwardBadge('sound_on', '🔊', 'Sound On', true);
+    }
+  });
+}
+
+// ─── Toast Notifications ─────────────────────────────────────────────────────
+const toastContainer = document.getElementById('toast-container');
+
+function showToast(type, icon, title, msg, durationMs = 4000) {
+  if (!toastContainer) return;
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <div class="toast-body">
+      <div class="toast-title">${escapeHtml(title)}</div>
+      ${msg ? `<div class="toast-msg">${escapeHtml(msg)}</div>` : ''}
+    </div>`;
+  toastContainer.appendChild(el);
+
+  const remove = () => {
+    el.classList.add('toast-out');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  };
+
+  const timer = setTimeout(remove, durationMs);
+  el.addEventListener('click', () => { clearTimeout(timer); remove(); });
+}
+
+// ─── Tab Navigation ──────────────────────────────────────────────────────────
+const ALL_SECTIONS = [
+  'section-signal', 'section-history', 'section-risk',
+  'section-technical', 'section-success', 'section-news', 'section-alerts',
+];
+
+// Sections belonging to each tab
+const TAB_SECTIONS = {
+  'section-signal':    ['section-signal', 'section-history'],
+  'section-risk':      ['section-risk'],
+  'section-technical': ['section-technical'],
+  'section-success':   ['section-success'],
+  'section-news':      ['section-news'],
+  'section-alerts':    ['section-alerts'],
+};
+
+function activateTab(targetSection) {
+  // Update tab active states
+  document.querySelectorAll('.fx-tab').forEach(tab => {
+    const isActive = tab.dataset.section === targetSection;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  // Show / hide sections
+  const visible = TAB_SECTIONS[targetSection] || [targetSection];
+  ALL_SECTIONS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (visible.includes(id)) {
+      el.classList.remove('fx-hidden');
+      // Trigger animation
+      el.style.animation = 'none';
+      el.offsetHeight; // reflow
+      el.style.animation = '';
+    } else {
+      el.classList.add('fx-hidden');
+    }
+  });
+}
+
+document.querySelectorAll('.fx-tab').forEach(tab => {
+  tab.addEventListener('click', () => activateTab(tab.dataset.section));
+});
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const pairSelect      = document.getElementById('pair-select');
@@ -97,13 +317,60 @@ async function loadSignal(pair) {
     const res = await fetch(`/api/forex/signals?pair=${encodeURIComponent(pair)}`);
     if (!res.ok) throw new Error(await res.text());
     signalData = await res.json();
+
+    const isNewSignal = previousDirection && signalData.direction !== previousDirection;
+
     renderSignal(signalData);
     drawChart(signalData.history);
-    // Auto-fill calculator with signal levels
     autoFillCalculator(signalData);
     runCalculator();
-    // Load technical analysis for this pair
     loadTechnicalAnalysis(pair);
+    updateSuccessRateCard(pair, signalData);
+
+    // Gamification
+    gameState.signalsWatched++;
+    addXp(5, 'signal watched');
+    checkAndAwardBadge('first_signal', '👀', 'First Signal', gameState.signalsWatched >= 1);
+    checkAndAwardBadge('watched_10',   '🏅', '10 Signals Watched', gameState.signalsWatched >= 10);
+    checkAndAwardBadge('watched_50',   '��', '50 Signals Watched', gameState.signalsWatched >= 50);
+    checkAndAwardBadge('first_buy',    '🟢', 'First BUY',  signalData.direction === 'BUY');
+    checkAndAwardBadge('first_sell',   '🔴', 'First SELL', signalData.direction === 'SELL');
+    checkAndAwardBadge('high_conf',    '💎', 'High Confidence Signal', signalData.confidence >= 75);
+
+    if (isNewSignal) {
+      // New direction — streak broken, XP bonus
+      gameState.streak = 1;
+      addXp(20, 'new signal');
+      const dir = signalData.direction;
+      const soundType = dir === 'BUY' ? 'buy' : dir === 'SELL' ? 'sell' : 'hold';
+      playSignalSound(soundType);
+      const dirIcon = dir === 'BUY' ? '🟢' : dir === 'SELL' ? '🔴' : '🟡';
+      showToast(
+        `toast-${dir.toLowerCase()}`,
+        dirIcon,
+        `New ${dir} Signal – ${pair}`,
+        `Confidence: ${signalData.confidence}% · Entry: ${formatPrice(signalData.entry_price, pair)}`,
+        5000,
+      );
+      // Flash the signal card
+      const card = document.getElementById('fx-signal-card');
+      if (card) {
+        card.classList.remove('signal-updated');
+        card.offsetHeight;
+        card.classList.add('signal-updated');
+      }
+    } else {
+      gameState.streak = (gameState.streak || 0) + 1;
+      playSignalSound('refresh');
+      checkAndAwardBadge('streak_3', '🔥', '3-Signal Streak', gameState.streak >= 3);
+      checkAndAwardBadge('streak_5', '⚡', '5-Signal Streak', gameState.streak >= 5);
+    }
+
+    saveGameState();
+    updateGameBar();
+    previousDirection = signalData.direction;
+    lastDirectionByPair[pair] = signalData.direction;
+
   } catch (err) {
     console.error('Failed to load signal:', err);
   } finally {
@@ -431,6 +698,110 @@ function renderTechnicalAnalysis(data) {
   taContent.style.display = 'grid';
 }
 
+// ─── Success Rate Tracking ────────────────────────────────────────────────────
+// Map of pair → {accuracy, direction, total, correct, loaded}
+const successRateCache = {};
+
+const ALL_PAIRS = [
+  'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'NZD/USD',
+  'EUR/GBP', 'EUR/JPY', 'EUR/AUD', 'EUR/CAD', 'GBP/JPY', 'GBP/CHF', 'AUD/JPY',
+];
+
+/**
+ * Compute accuracy from history array provided by the signal API.
+ * Returns { accuracy: number, total: number, correct: number }
+ */
+function computeAccuracy(history) {
+  if (!history || history.length === 0) return { accuracy: 0, total: 0, correct: 0 };
+  const correct = history.filter(h => h.correct).length;
+  return { accuracy: Math.round((correct / history.length) * 100), total: history.length, correct };
+}
+
+/** Update (or insert) the success-rate card for a single pair. */
+function updateSuccessRateCard(pair, data) {
+  const { accuracy, total, correct } = computeAccuracy(data.history);
+  const dir = data.direction;
+  successRateCache[pair] = { accuracy, total, correct, direction: dir };
+
+  const grid = document.getElementById('success-rate-grid');
+  if (!grid) return;
+
+  // Remove placeholder if present
+  const placeholder = document.getElementById('success-loading');
+  if (placeholder) placeholder.remove();
+
+  const cardId = `sr-card-${pair.replace('/', '-')}`;
+  let card = document.getElementById(cardId);
+  if (!card) {
+    card = document.createElement('div');
+    card.id = cardId;
+    card.className = 'sr-pair-card';
+    grid.appendChild(card);
+  }
+
+  const pct   = accuracy;
+  const rateClass = pct >= 60 ? 'high' : pct >= 45 ? 'mid' : 'low';
+  const barClass  = pct >= 60 ? ''     : pct >= 45 ? 'mid' : 'low';
+
+  card.innerHTML = `
+    <div class="sr-pair-name">
+      ${escapeHtml(pair)}
+      <span class="sr-direction-tag ${dir}">${dir}</span>
+    </div>
+    <div class="sr-rate-row">
+      <div class="sr-rate-bar-wrap">
+        <div class="sr-rate-bar-fill ${barClass}" style="width:${pct}%"></div>
+      </div>
+      <span class="sr-rate-pct ${rateClass}">${pct}%</span>
+    </div>
+    <div class="sr-pair-meta">
+      <span>${correct}/${total} correct</span>
+      <span>30-day history</span>
+    </div>`;
+}
+
+/** Fetch success rates for all pairs sequentially (rate-limit friendly). */
+async function loadAllPairSuccessRates() {
+  const btn = document.getElementById('btn-load-all-pairs');
+  if (btn) { btn.disabled = true; btn.textContent = '⟳ Loading…'; }
+
+  const grid = document.getElementById('success-rate-grid');
+  const placeholder = document.getElementById('success-loading');
+  if (placeholder) placeholder.remove();
+
+  // Add skeleton cards for all pairs not yet loaded
+  ALL_PAIRS.forEach(pair => {
+    const cardId = `sr-card-${pair.replace('/', '-')}`;
+    if (!document.getElementById(cardId) && grid) {
+      const skel = document.createElement('div');
+      skel.id = cardId;
+      skel.className = 'sr-pair-card loading';
+      skel.style.minHeight = '100px';
+      grid.appendChild(skel);
+    }
+  });
+
+  // Fetch in small batches to avoid hammering the API
+  for (const pair of ALL_PAIRS) {
+    if (successRateCache[pair]) { continue; }
+    try {
+      const res = await fetch(`/api/forex/signals?pair=${encodeURIComponent(pair)}`);
+      if (res.ok) {
+        const data = await res.json();
+        updateSuccessRateCard(pair, data);
+      }
+    } catch { /* skip failed pair */ }
+    // Small delay between requests
+    await new Promise(r => setTimeout(r, PAIR_FETCH_DELAY_MS));
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '⟳ Reload All Pairs'; }
+  showToast('toast-info', '🏆', 'Success Rates Updated', `Loaded data for ${ALL_PAIRS.length} pairs.`);
+}
+
+const loadAllBtn = document.getElementById('btn-load-all-pairs');
+if (loadAllBtn) loadAllBtn.addEventListener('click', loadAllPairSuccessRates);
+
 // ─── News Feed ────────────────────────────────────────────────────────────────
 async function loadNews() {
   try {
@@ -510,8 +881,16 @@ function showSubscribeStatus(type, msg) {
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
+// Per-pair last-seen direction cache so switching pairs doesn't trigger
+// false "new signal" notifications on the initial load for that pair.
+const lastDirectionByPair = {};
+
 pairSelect.addEventListener('change', () => {
   currentPair = pairSelect.value;
+  // Carry forward the previously seen direction for this pair (if any)
+  // so the first load only fires a new-signal alert when the direction
+  // has genuinely changed since the last time this pair was viewed.
+  previousDirection = lastDirectionByPair[currentPair] ?? null;
   loadSignal(currentPair);
   resetAutoRefresh();
 });
@@ -536,6 +915,13 @@ window.addEventListener('resize', () => {
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+// Restore gamification state
+updateGameBar();
+renderBadges();
+
+// Default tab: Signal
+activateTab('section-signal');
+
 loadSignal(currentPair);
 loadNews();
 resetAutoRefresh();
