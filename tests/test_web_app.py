@@ -1007,6 +1007,134 @@ class TestForexExpanded:
         data = json.loads(resp.data)
         assert "XAU/USD" in data["all"]
 
+    def test_gold_signal_uses_yahoo_finance_data_source_when_live(self, client):
+        """When a live gold price is available the data_source must reference Yahoo Finance."""
+        from unittest.mock import patch, MagicMock
+        from web.app import _RATE_CACHE, _CACHE_LOCK
+
+        mock_rate = 3150.25
+        # Inject a pre-populated cache entry so _fetch_gold_rate returns immediately
+        import time
+        with _CACHE_LOCK:
+            _RATE_CACHE["rate:XAU/USD"] = {"rate": mock_rate, "fetched_at": time.time()}
+            _RATE_CACHE["hist:XAU/USD:30"] = {
+                "data": {f"2026-03-{i:02d}": mock_rate - i for i in range(1, 31)},
+                "fetched_at": time.time(),
+            }
+
+        resp = client.get("/api/forex/signals?pair=XAU%2FUSD")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["is_live"] is True
+        assert "Yahoo Finance" in data["data_source"]
+        assert data["entry_price"] == mock_rate
+
+        # Clean up injected cache entries
+        with _CACHE_LOCK:
+            _RATE_CACHE.pop("rate:XAU/USD", None)
+            _RATE_CACHE.pop("hist:XAU/USD:30", None)
+
+    def test_gold_live_rate_routing(self):
+        """_fetch_live_rate('XAU/USD') must call the Yahoo Finance path, not Frankfurter."""
+        from unittest.mock import patch, MagicMock
+        import web.app as app_module
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {
+            "chart": {"result": [{"meta": {"regularMarketPrice": 3200.50}}]}
+        }
+
+        # Clear any stale cache entry
+        with app_module._CACHE_LOCK:
+            app_module._RATE_CACHE.pop("rate:XAU/USD", None)
+
+        with patch.object(app_module._requests, "get", return_value=mock_resp) as mock_get:
+            rate = app_module._fetch_live_rate("XAU/USD")
+
+        assert rate == 3200.50
+        # The URL used must be the Yahoo Finance chart URL, not Frankfurter
+        called_url = mock_get.call_args[0][0]
+        assert "yahoo" in called_url.lower() or "finance" in called_url.lower()
+        assert "frankfurter" not in called_url.lower()
+
+    def test_gold_historical_routing(self):
+        """_fetch_historical_rates('XAU/USD') must call Yahoo Finance, not Frankfurter."""
+        from unittest.mock import patch, MagicMock
+        import web.app as app_module
+        import datetime as dt
+
+        # Use March 2026 to avoid month-length edge cases
+        timestamps = [int(dt.datetime(2026, 3, i).timestamp()) for i in range(1, 31)]
+        closes = [3000.0 + i for i in range(30)]
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {
+            "chart": {
+                "result": [{
+                    "timestamp": timestamps,
+                    "indicators": {"quote": [{"close": closes}]},
+                }]
+            }
+        }
+
+        with app_module._CACHE_LOCK:
+            app_module._RATE_CACHE.pop("hist:XAU/USD:30", None)
+
+        with patch.object(app_module._requests, "get", return_value=mock_resp) as mock_get:
+            hist = app_module._fetch_historical_rates("XAU/USD", 30)
+
+        assert len(hist) > 0
+        called_url = mock_get.call_args[0][0]
+        assert "yahoo" in called_url.lower() or "finance" in called_url.lower()
+        assert "frankfurter" not in called_url.lower()
+
+    def test_gold_fetch_rate_returns_none_on_api_failure(self):
+        """_fetch_gold_rate() must return None (not raise) when Yahoo Finance is down."""
+        from unittest.mock import patch, MagicMock
+        import web.app as app_module
+
+        with app_module._CACHE_LOCK:
+            app_module._RATE_CACHE.pop("rate:XAU/USD", None)
+
+        with patch.object(app_module._requests, "get", side_effect=Exception("network error")):
+            rate = app_module._fetch_gold_rate()
+
+        assert rate is None
+
+    def test_gold_historical_returns_empty_on_api_failure(self):
+        """_fetch_gold_historical_rates() must return {} (not raise) when Yahoo Finance is down."""
+        from unittest.mock import patch
+        import web.app as app_module
+
+        with app_module._CACHE_LOCK:
+            app_module._RATE_CACHE.pop("hist:XAU/USD:30", None)
+
+        with patch.object(app_module._requests, "get", side_effect=Exception("timeout")):
+            hist = app_module._fetch_gold_historical_rates(30)
+
+        assert hist == {}
+
+    def test_fiat_pair_still_uses_frankfurter(self):
+        """Non-gold pairs must continue using the Frankfurter API, not Yahoo Finance."""
+        from unittest.mock import patch, MagicMock
+        import web.app as app_module
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {"rates": {"USD": 1.0900}}
+
+        with app_module._CACHE_LOCK:
+            app_module._RATE_CACHE.pop("rate:EUR/USD", None)
+
+        with patch.object(app_module._requests, "get", return_value=mock_resp) as mock_get:
+            rate = app_module._fetch_live_rate("EUR/USD")
+
+        assert rate == 1.0900
+        called_url = mock_get.call_args[0][0]
+        assert "frankfurter" in called_url.lower()
+
 
 # ─── CSV upload ──────────────────────────────────────────────────────────────
 

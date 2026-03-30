@@ -957,19 +957,108 @@ def ai_analyze_chart():
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
-# ─── Live rate fetching (Frankfurter API – free, no key required) ─────────────
+# ─── Live rate fetching ────────────────────────────────────────────────────────
+# Fiat pairs  → Frankfurter API (ECB data – free, no key required)
+# XAU/USD     → Yahoo Finance chart API (free, no key required; Frankfurter
+#               does not carry XAU/gold data)
 _FRANKFURTER_BASE = "https://api.frankfurter.app"
+_YAHOO_FINANCE_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
+# Yahoo Finance ticker for spot gold quoted in USD
+_GOLD_TICKER = "GC=F"
 _RATE_CACHE: dict[str, dict] = {}
 _CACHE_LOCK = Lock()
 _CACHE_TTL_SECONDS = 300  # refresh every 5 minutes
 
+# Common request headers for Yahoo Finance (avoids 429s on some networks)
+_YF_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    )
+}
+
+
+def _fetch_gold_rate() -> float | None:
+    """Return the current XAU/USD spot price via Yahoo Finance.
+
+    Uses the ``GC=F`` (gold futures) ticker which closely tracks the XAU/USD
+    spot rate.  Results are cached for :data:`_CACHE_TTL_SECONDS` seconds.
+    Returns ``None`` when the API is unreachable.
+    """
+    cache_key = "rate:XAU/USD"
+    now = datetime.now(timezone.utc).timestamp()
+    with _CACHE_LOCK:
+        entry = _RATE_CACHE.get(cache_key)
+        if entry and now - entry["fetched_at"] < _CACHE_TTL_SECONDS:
+            return entry["rate"]
+    try:
+        resp = _requests.get(
+            f"{_YAHOO_FINANCE_BASE}/{_GOLD_TICKER}",
+            params={"interval": "1d", "range": "1d"},
+            headers=_YF_HEADERS,
+            timeout=5,
+        )
+        resp.raise_for_status()
+        rate: float = float(
+            resp.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
+        )
+        with _CACHE_LOCK:
+            _RATE_CACHE[cache_key] = {"rate": rate, "fetched_at": now}
+        return rate
+    except Exception:
+        return None
+
+
+def _fetch_gold_historical_rates(days: int = 30) -> dict[str, float]:
+    """Return a ``{date_str: rate}`` mapping for XAU/USD over the last *days*
+    trading days, sourced from Yahoo Finance.
+
+    Results are cached for :data:`_CACHE_TTL_SECONDS` seconds.  Returns an
+    empty dict when the API is unreachable.
+    """
+    cache_key = f"hist:XAU/USD:{days}"
+    now = datetime.now(timezone.utc).timestamp()
+    with _CACHE_LOCK:
+        entry = _RATE_CACHE.get(cache_key)
+        if entry and now - entry["fetched_at"] < _CACHE_TTL_SECONDS:
+            return entry["data"]
+    try:
+        resp = _requests.get(
+            f"{_YAHOO_FINANCE_BASE}/{_GOLD_TICKER}",
+            params={"interval": "1d", "range": "3mo"},
+            headers=_YF_HEADERS,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        result = resp.json()["chart"]["result"][0]
+        timestamps: list[int] = result["timestamp"]
+        closes: list[float | None] = result["indicators"]["quote"][0]["close"]
+        rates: dict[str, float] = {}
+        for ts, close in zip(timestamps, closes):
+            if close is None:
+                continue
+            d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+            rates[d] = round(float(close), 2)
+        sorted_rates = dict(sorted(rates.items()))
+        recent = dict(list(sorted_rates.items())[-days:])
+        with _CACHE_LOCK:
+            _RATE_CACHE[cache_key] = {"data": recent, "fetched_at": now}
+        return recent
+    except Exception:
+        return {}
+
 
 def _fetch_live_rate(pair: str) -> float | None:
-    """Return the current mid-market rate for *pair* via Frankfurter API.
+    """Return the current mid-market rate for *pair*.
 
+    XAU/USD is fetched via Yahoo Finance (Frankfurter does not carry gold).
+    All other pairs use the Frankfurter API (ECB data).
     Returns ``None`` if the API is unreachable or the pair is not supported.
     Results are cached for :data:`_CACHE_TTL_SECONDS` seconds.
     """
+    if pair == "XAU/USD":
+        return _fetch_gold_rate()
+
     cache_key = f"rate:{pair}"
     now = datetime.now(timezone.utc).timestamp()
     with _CACHE_LOCK:
@@ -995,10 +1084,14 @@ def _fetch_live_rate(pair: str) -> float | None:
 def _fetch_historical_rates(pair: str, days: int = 30) -> dict[str, float]:
     """Return a ``{date_str: rate}`` mapping for the last *days* trading days.
 
-    Fetches data from the Frankfurter historical-series endpoint and caches
-    the result for :data:`_CACHE_TTL_SECONDS` seconds.  Returns an empty dict
-    when the API is unreachable.
+    XAU/USD is fetched via Yahoo Finance (Frankfurter does not carry gold).
+    All other pairs use the Frankfurter historical-series endpoint.
+    Results are cached for :data:`_CACHE_TTL_SECONDS` seconds.  Returns an
+    empty dict when the API is unreachable.
     """
+    if pair == "XAU/USD":
+        return _fetch_gold_historical_rates(days)
+
     cache_key = f"hist:{pair}:{days}"
     now = datetime.now(timezone.utc).timestamp()
     with _CACHE_LOCK:
@@ -1286,9 +1379,9 @@ _FOREX_SIGNALS: dict[str, dict[str, Any]] = {
     "XAU/USD": {
         "direction": "BUY",
         "confidence": 71.4,
-        "entry_price": 2320.50,
-        "take_profit": 2360.00,
-        "stop_loss": 2298.00,
+        "entry_price": 3085.00,
+        "take_profit": 3145.00,
+        "stop_loss": 3050.00,
         "generated_at": "2026-03-30T09:00:00Z",
         "model_version": "LightGBM v2.3",
         "features_used": _FEATURES_DEFAULT,
@@ -1339,7 +1432,7 @@ _FOREX_HIST_SEQUENCES: dict[str, tuple[float, float, list[tuple[str, str, int]]]
     "GBP/JPY": (189.40, 0.01,   _gen_seq("GBP/JPY")),
     "GBP/CHF": (1.1410, 0.0001, _gen_seq("GBP/CHF")),
     "AUD/JPY": (98.20,  0.01,   _gen_seq("AUD/JPY")),
-    "XAU/USD": (2250.00, 1.0,   _gen_seq("XAU/USD")),
+    "XAU/USD": (3050.00, 1.0,   _gen_seq("XAU/USD")),
 }
 
 _FOREX_NEWS: list[dict[str, Any]] = [
@@ -1434,9 +1527,10 @@ def _build_forex_history(pair: str) -> list[dict[str, Any]]:
 def _build_technical_analysis(pair: str, live_price: float | None = None) -> dict[str, Any]:
     """Return deterministic technical-analysis data for *pair*.
 
-    When *live_price* is supplied (fetched from Frankfurter API) it is used as
-    the reference price for support/resistance calculations; otherwise the
-    static entry price from ``_FOREX_SIGNALS`` is used as a fallback.
+    When *live_price* is supplied it is used as the reference price for
+    support/resistance calculations; otherwise the static entry price from
+    ``_FOREX_SIGNALS`` is used as a fallback.  For XAU/USD the price comes
+    from Yahoo Finance; all other pairs use the Frankfurter API (ECB).
     """
     signal = _FOREX_SIGNALS[pair]
     price = live_price if live_price is not None else signal["entry_price"]
@@ -1575,7 +1669,9 @@ def forex_methodology():
 def forex_signals():
     """Return the current signal + 30-day history for a forex pair.
 
-    Prices and signal direction are derived from live Frankfurter API data.
+    Prices and signal direction are derived from live market data:
+    - XAU/USD  → Yahoo Finance (Frankfurter does not carry gold data)
+    - All other pairs → Frankfurter API (ECB)
     The static ``_FOREX_SIGNALS`` dict is used as a fallback when the external
     API is unavailable.
     """
@@ -1596,7 +1692,9 @@ def forex_signals():
     if live_rate is not None:
         signal["entry_price"] = live_rate
         signal["generated_at"] = datetime.now(timezone.utc).isoformat()
-        signal["data_source"] = "Frankfurter API (ECB)"
+        signal["data_source"] = (
+            "Yahoo Finance (gold spot)" if pair == "XAU/USD" else "Frankfurter API (ECB)"
+        )
         signal["is_live"] = True
 
         if hist_rates:
