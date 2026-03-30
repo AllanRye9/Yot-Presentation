@@ -53,6 +53,7 @@ ALLOWED_EXTENSIONS = {
     "doc",
     "xlsx",
     "xls",
+    "csv",
     "txt",
     "png",
     "jpg",
@@ -218,6 +219,38 @@ def convert_image(file_bytes: bytes, filename: str) -> list[dict[str, Any]]:
             "image": f"data:{mime};base64,{img_b64}",
         }
     ]
+
+
+def convert_csv(file_bytes: bytes, filename: str) -> list[dict[str, Any]]:
+    """Convert a CSV file into table slides (one slide per 50 rows)."""
+    import csv
+
+    text = file_bytes.decode("utf-8-sig", errors="replace")
+    reader = csv.reader(text.splitlines())
+    rows_raw = [row for row in reader if any(cell.strip() for cell in row)]
+    if not rows_raw:
+        return [{"id": 1, "type": "table", "title": Path(filename).stem, "headers": [], "rows": []}]
+
+    headers = rows_raw[0]
+    data_rows = rows_raw[1:]
+
+    # Chunk into slides of at most 50 data rows each
+    chunk_size = 50
+    slides: list[dict[str, Any]] = []
+    chunks = [data_rows[i : i + chunk_size] for i in range(0, len(data_rows), chunk_size)] if data_rows else [[]]
+    stem = Path(filename).stem
+    for i, chunk in enumerate(chunks):
+        title = stem if len(chunks) == 1 else f"{stem} ({i + 1}/{len(chunks)})"
+        slides.append(
+            {
+                "id": i + 1,
+                "type": "table",
+                "title": title,
+                "headers": headers,
+                "rows": chunk,
+            }
+        )
+    return slides
 
 
 # ─────────────────────────────────────────────
@@ -562,6 +595,7 @@ def upload_file():
             "doc": lambda b: convert_docx(b),
             "xlsx": lambda b: convert_xlsx(b),
             "xls": lambda b: convert_xlsx(b),
+            "csv": lambda b: convert_csv(b, filename),
             "txt": lambda b: convert_text(b),
             "png": lambda b: convert_image(b, filename),
             "jpg": lambda b: convert_image(b, filename),
@@ -793,7 +827,132 @@ def ai_analyze():
         return jsonify({"error": str(exc)}), 500
 
 
-# ─── Forex Signal Hub ────────────────────────────────────────────────────────
+# ─── AI chart image analysis ──────────────────────────────────────────────
+
+
+def _analyze_chart_image(image_data_uri: str) -> dict[str, Any]:
+    """
+    Analyze a chart image supplied as a data-URI and return visual statistics.
+
+    Uses Pillow to compute:
+     - width / height / aspect_ratio
+     - brightness  : average perceived luminance (0–255)
+     - colorfulness : standard deviation of hue across pixels (0–180)
+     - dominant_colors : up to 6 hex colors obtained via median-cut quantization
+     - has_white_background : True when the majority of edge pixels are near-white
+     - chart_type_hint : a best-effort guess (bar / pie / line / scatter / unknown)
+       based on simple heuristic analysis of dominant colors and aspect ratio
+    """
+    from PIL import Image, ImageStat
+    import colorsys
+
+    # Strip data-URI prefix and decode
+    if "," in image_data_uri:
+        image_data_uri = image_data_uri.split(",", 1)[1]
+    img_bytes = base64.b64decode(image_data_uri)
+    img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+    width, height = img.size
+    aspect_ratio = round(width / height, 3) if height else 1.0
+
+    # Brightness: mean of luminance channel from L*a*b* would be ideal, but
+    # converting via YCbCr gives a good perceptual estimate with Pillow alone.
+    lum_img = img.convert("L")
+    stat = ImageStat.Stat(lum_img)
+    brightness = round(stat.mean[0], 1)
+
+    # Colorfulness: measure hue spread across a small grid of sampled pixels
+    sample_img = img.resize((64, 64), Image.LANCZOS)
+    # Use get_flattened_data when available (Pillow ≥ 10 deprecates getdata)
+    _getter = getattr(sample_img, "get_flattened_data", None) or sample_img.getdata
+    pixels = list(_getter())
+    hues: list[float] = []
+    for r, g, b in pixels:
+        h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+        if s > 0.15:  # only count pixels that are actually coloured
+            hues.append(h * 360)
+    colorfulness = 0.0
+    if hues:
+        mean_h = sum(hues) / len(hues)
+        colorfulness = round((sum((h - mean_h) ** 2 for h in hues) / len(hues)) ** 0.5, 1)
+
+    # Dominant colors via Pillow's built-in quantization
+    palette_img = img.convert("P", palette=Image.ADAPTIVE, colors=6)
+    palette = palette_img.getpalette()  # flat list R,G,B,R,G,B,…
+    dominant_colors: list[str] = []
+    if palette:
+        num_colors = min(6, len(palette) // 3)
+        for i in range(num_colors):
+            r, g, b = palette[i * 3], palette[i * 3 + 1], palette[i * 3 + 2]
+            dominant_colors.append(f"#{r:02x}{g:02x}{b:02x}")
+
+    # White-background heuristic: sample a 1-pixel border; if ≥ 70% of those
+    # pixels have all channels ≥ 230 we call it a white background.
+    border_pixels: list[tuple[int, int, int]] = []
+    arr = img.load()
+    for x in range(width):
+        border_pixels.append(arr[x, 0])
+        border_pixels.append(arr[x, height - 1])
+    for y in range(height):
+        border_pixels.append(arr[0, y])
+        border_pixels.append(arr[width - 1, y])
+    white_count = sum(1 for r, g, b in border_pixels if r >= 230 and g >= 230 and b >= 230)
+    has_white_background = bool(border_pixels and white_count / len(border_pixels) >= 0.7)
+
+    # Chart-type heuristic
+    chart_type_hint = "unknown"
+    if colorfulness < 20 and len(hues) < 50:
+        chart_type_hint = "line"
+    elif colorfulness >= 20 and aspect_ratio > 1.2:
+        chart_type_hint = "bar"
+    elif 0.8 <= aspect_ratio <= 1.2 and colorfulness >= 30:
+        chart_type_hint = "pie"
+    elif colorfulness >= 15 and brightness > 180:
+        chart_type_hint = "scatter"
+    elif colorfulness >= 20:
+        chart_type_hint = "bar"
+
+    return {
+        "width": width,
+        "height": height,
+        "aspect_ratio": aspect_ratio,
+        "brightness": brightness,
+        "colorfulness": colorfulness,
+        "dominant_colors": dominant_colors,
+        "has_white_background": has_white_background,
+        "chart_type_hint": chart_type_hint,
+    }
+
+
+@app.route("/api/ai/analyze-chart", methods=["POST"])
+def ai_analyze_chart():
+    """
+    Analyze a chart image and return visual statistics.
+
+    Request body (JSON):
+      { "image": "<data-URI of chart image>" }
+
+    Response:
+      {
+        "width": int, "height": int, "aspect_ratio": float,
+        "brightness": float,
+        "colorfulness": float,
+        "dominant_colors": ["#rrggbb", …],
+        "has_white_background": bool,
+        "chart_type_hint": "bar" | "pie" | "line" | "scatter" | "unknown"
+      }
+    """
+    data: dict[str, Any] = request.get_json(force=True) or {}
+    image: str = data.get("image", "").strip()
+
+    if not image:
+        return jsonify({"error": "No image data provided"}), 400
+
+    try:
+        result = _analyze_chart_image(image)
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 _SUPPORTED_PAIRS = (
     # Major pairs (USD as base or quote)

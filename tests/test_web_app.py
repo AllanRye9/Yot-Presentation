@@ -19,10 +19,12 @@ from web.app import (
     match_command,
     convert_text,
     convert_image,
+    convert_csv,
     _extract_keywords,
     _extractive_summary,
     _simple_sentiment,
     _estimate_reading_time,
+    _analyze_chart_image,
 )
 
 
@@ -961,3 +963,155 @@ class TestForexExpanded:
         assert len(data["all"]) == 14
         assert "EUR/USD" in data["major"]
         assert "EUR/GBP" in data["cross"]
+
+
+# ─── CSV upload ──────────────────────────────────────────────────────────────
+
+
+class TestConvertCsv:
+    """Unit tests for the convert_csv helper."""
+
+    def _csv(self, text: str, name: str = "data.csv") -> bytes:
+        return text.encode("utf-8")
+
+    def test_basic_table(self):
+        slides = convert_csv(self._csv("Name,Age\nAlice,30\nBob,25"), "data.csv")
+        assert len(slides) == 1
+        s = slides[0]
+        assert s["type"] == "table"
+        assert s["title"] == "data"
+        assert s["headers"] == ["Name", "Age"]
+        assert s["rows"] == [["Alice", "30"], ["Bob", "25"]]
+
+    def test_empty_csv(self):
+        slides = convert_csv(self._csv(""), "empty.csv")
+        assert len(slides) == 1
+        assert slides[0]["type"] == "table"
+        assert slides[0]["headers"] == []
+
+    def test_chunking(self):
+        rows = ["h1,h2"] + [f"{i},{i*2}" for i in range(120)]
+        slides = convert_csv(self._csv("\n".join(rows)), "big.csv")
+        # 120 data rows → 3 slides of 50 / 50 / 20
+        assert len(slides) == 3
+        assert len(slides[0]["rows"]) == 50
+        assert len(slides[1]["rows"]) == 50
+        assert len(slides[2]["rows"]) == 20
+        # Titles mention the chunk number
+        assert "1/3" in slides[0]["title"]
+        assert "3/3" in slides[2]["title"]
+
+    def test_upload_csv_via_endpoint(self, client):
+        csv_content = b"Product,Price\nApple,1.5\nBanana,0.9"
+        data = {
+            "file": (io.BytesIO(csv_content), "prices.csv"),
+        }
+        resp = client.post("/upload", data=data, content_type="multipart/form-data")
+        assert resp.status_code == 200
+        result = json.loads(resp.data)
+        assert result["success"]
+        assert result["filename"] == "prices.csv"
+        assert result["total_slides"] == 1
+        slide = result["slides"][0]
+        assert slide["type"] == "table"
+        assert slide["headers"] == ["Product", "Price"]
+
+
+# ─── chart image analysis ─────────────────────────────────────────────────────
+
+
+def _make_png_data_uri(width: int = 10, height: int = 10, color: tuple = (255, 0, 0)) -> str:
+    """Create a minimal solid-color PNG as a data-URI for testing."""
+    from PIL import Image
+    img = Image.new("RGB", (width, height), color)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = __import__("base64").b64encode(buf.getvalue()).decode()
+    return f"data:image/png;base64,{b64}"
+
+
+class TestAnalyzeChartImage:
+    """Unit tests for _analyze_chart_image and the /api/ai/analyze-chart endpoint."""
+
+    def test_returns_expected_keys(self):
+        uri = _make_png_data_uri()
+        result = _analyze_chart_image(uri)
+        for key in ("width", "height", "aspect_ratio", "brightness",
+                    "colorfulness", "dominant_colors", "has_white_background",
+                    "chart_type_hint"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_dimensions(self):
+        uri = _make_png_data_uri(width=80, height=40)
+        result = _analyze_chart_image(uri)
+        assert result["width"] == 80
+        assert result["height"] == 40
+        assert result["aspect_ratio"] == pytest.approx(2.0, rel=0.01)
+
+    def test_bright_white_image(self):
+        uri = _make_png_data_uri(width=20, height=20, color=(255, 255, 255))
+        result = _analyze_chart_image(uri)
+        assert result["brightness"] > 200
+        assert result["has_white_background"] is True
+
+    def test_dark_image(self):
+        uri = _make_png_data_uri(width=20, height=20, color=(10, 10, 10))
+        result = _analyze_chart_image(uri)
+        assert result["brightness"] < 50
+        assert result["has_white_background"] is False
+
+    def test_dominant_colors_returned(self):
+        uri = _make_png_data_uri(color=(100, 150, 200))
+        result = _analyze_chart_image(uri)
+        assert isinstance(result["dominant_colors"], list)
+        assert len(result["dominant_colors"]) > 0
+        for c in result["dominant_colors"]:
+            assert c.startswith("#")
+            assert len(c) == 7
+
+    def test_chart_type_hint_is_string(self):
+        uri = _make_png_data_uri()
+        result = _analyze_chart_image(uri)
+        valid_hints = {"bar", "pie", "line", "scatter", "unknown"}
+        assert result["chart_type_hint"] in valid_hints
+
+    def test_endpoint_no_image(self, client):
+        resp = client.post(
+            "/api/ai/analyze-chart",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+    def test_endpoint_with_image(self, client):
+        uri = _make_png_data_uri(width=50, height=30, color=(200, 100, 50))
+        resp = client.post(
+            "/api/ai/analyze-chart",
+            data=json.dumps({"image": uri}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["width"] == 50
+        assert data["height"] == 30
+        assert "chart_type_hint" in data
+        assert "dominant_colors" in data
+
+    def test_endpoint_accepts_raw_base64(self, client):
+        """Endpoint should also accept bare base64 (no data-URI prefix)."""
+        from PIL import Image
+        import base64
+        img = Image.new("RGB", (10, 10), (0, 200, 0))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        raw_b64 = base64.b64encode(buf.getvalue()).decode()
+        resp = client.post(
+            "/api/ai/analyze-chart",
+            data=json.dumps({"image": raw_b64}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["width"] == 10
