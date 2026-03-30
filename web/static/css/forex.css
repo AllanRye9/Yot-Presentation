@@ -899,7 +899,16 @@ a:hover { text-decoration: underline; }
   .fx-header .brand span:last-child { display: none; }
   .fx-gamebar { gap: 12px; padding: 6px 12px; }
   .toast-container { right: 10px; top: 110px; }
-  .toast { min-width: 180px; }
+  .toast { min-width: 180px; max-width: calc(100vw - 20px); }
+  .fx-header { padding: 0 12px; }
+  .fx-main { padding: 16px 12px 80px; gap: 20px; }
+  .fx-tab { padding: 10px 12px; font-size: 0.82rem; }
+  .fx-section-title { font-size: 1rem; }
+}
+
+@media (max-width: 400px) {
+  .toast { min-width: 0; width: calc(100vw - 20px); }
+  .fx-tab { padding: 8px 10px; font-size: 0.78rem; }
 }
 
 /* ── Risk Management Calculator ── */
