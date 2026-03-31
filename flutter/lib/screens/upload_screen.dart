@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
@@ -8,11 +10,13 @@ import 'presentation_screen.dart';
 /// list of files already available on the server.
 class UploadScreen extends StatefulWidget {
   final String serverUrl;
+  final String voiceLocale;
   final VoidCallback onSettingsTap;
 
   const UploadScreen({
     super.key,
     required this.serverUrl,
+    required this.voiceLocale,
     required this.onSettingsTap,
   });
 
@@ -96,6 +100,7 @@ class _UploadScreenState extends State<UploadScreen> {
         builder: (_) => PresentationScreen(
           serverUrl: widget.serverUrl,
           file: file,
+          voiceLocale: widget.voiceLocale,
         ),
       ),
     );
@@ -139,11 +144,11 @@ class _UploadScreenState extends State<UploadScreen> {
       backgroundColor: cs.surface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Row(
+        title: const Row(
           children: [
             Text('🎤', style: TextStyle(fontSize: 22)),
-            const SizedBox(width: 8),
-            const Text('Yot-Presentation',
+            SizedBox(width: 8),
+            Text('Yot-Presentation',
                 style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
@@ -196,7 +201,8 @@ class _UploadScreenState extends State<UploadScreen> {
               Text('Cannot reach server', style: TextStyle(color: cs.error)),
               const SizedBox(height: 4),
               Text(widget.serverUrl,
-                  style: TextStyle(color: cs.onSurface.withOpacity(0.5),
+                  style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.5),
                       fontSize: 12)),
               const SizedBox(height: 12),
               TextButton(
@@ -213,10 +219,12 @@ class _UploadScreenState extends State<UploadScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.folder_open_outlined,
-                  size: 64, color: cs.onSurface.withOpacity(0.3)),
+                  size: 64,
+                  color: cs.onSurface.withValues(alpha: 0.3)),
               const SizedBox(height: 12),
               Text('No files yet – upload one above',
-                  style: TextStyle(color: cs.onSurface.withOpacity(0.5))),
+                  style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.5))),
             ],
           ),
         ),
@@ -231,7 +239,8 @@ class _UploadScreenState extends State<UploadScreen> {
               style: Theme.of(context)
                   .textTheme
                   .titleSmall
-                  ?.copyWith(color: cs.onSurface.withOpacity(0.6))),
+                  ?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.6))),
           const SizedBox(height: 8),
           Expanded(
             child: ListView.separated(
@@ -269,9 +278,10 @@ class _UploadCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
         decoration: BoxDecoration(
-          color: cs.primaryContainer.withOpacity(0.15),
+          color: cs.primaryContainer.withValues(alpha: 0.15),
           border: Border.all(
-              color: cs.primary.withOpacity(0.5), width: 1.5,
+              color: cs.primary.withValues(alpha: 0.5),
+              width: 1.5,
               style: BorderStyle.solid),
           borderRadius: BorderRadius.circular(16),
         ),
@@ -291,7 +301,8 @@ class _UploadCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text('PDF · Word · Excel · Image · Text',
                       style: TextStyle(
-                          color: cs.onSurface.withOpacity(0.5), fontSize: 12)),
+                          color: cs.onSurface.withValues(alpha: 0.5),
+                          fontSize: 12)),
                 ],
               ),
       ),
@@ -320,16 +331,15 @@ class _FileCard extends StatelessWidget {
       child: ListTile(
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: cs.primaryContainer,
-          child: Icon(_iconForFile(file.filename), color: cs.primary),
-        ),
+        leading: _buildLeading(cs),
         title: Text(file.filename,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w500)),
-        subtitle: Text('${file.totalSlides} slide${file.totalSlides == 1 ? '' : 's'}',
-            style: TextStyle(color: cs.onSurface.withOpacity(0.5))),
+        subtitle: Text(
+            '${file.totalSlides} slide${file.totalSlides == 1 ? '' : 's'}',
+            style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.5))),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -339,12 +349,44 @@ class _FileCard extends StatelessWidget {
                     Text('Open', style: TextStyle(color: cs.primary))),
             IconButton(
                 icon: const Icon(Icons.delete_outline),
-                color: cs.error.withOpacity(0.7),
+                color: cs.error.withValues(alpha: 0.7),
                 tooltip: 'Delete',
                 onPressed: onDelete),
           ],
         ),
       ),
+    );
+  }
+
+  /// Shows a base64-decoded thumbnail when available, falling back to an icon.
+  Widget _buildLeading(ColorScheme cs) {
+    if (file.thumbnail != null && file.thumbnail!.isNotEmpty) {
+      try {
+        String data = file.thumbnail!;
+        final commaIdx = data.indexOf(',');
+        if (commaIdx != -1) data = data.substring(commaIdx + 1);
+        final bytes = base64Decode(data);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.memory(
+            bytes,
+            width: 48,
+            height: 48,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _iconAvatar(cs),
+          ),
+        );
+      } catch (_) {
+        // Ignore malformed base64 thumbnail data and fall back to icon.
+      }
+    }
+    return _iconAvatar(cs);
+  }
+
+  Widget _iconAvatar(ColorScheme cs) {
+    return CircleAvatar(
+      backgroundColor: cs.primaryContainer,
+      child: Icon(_iconForFile(file.filename), color: cs.primary),
     );
   }
 
