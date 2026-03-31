@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin – Yot-Presentation</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='28'>🔐</text></svg>"/>
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .admin-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .admin-card h1 { font-size: 1.5rem; margin-bottom: 6px; }
+    .admin-card .subtitle { color: var(--text2); font-size: 0.85rem; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.85rem; color: var(--text2); margin-bottom: 6px; }
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus { border-color: var(--accent); }
+    .btn-full {
+      width: 100%;
+      padding: 11px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      margin-top: 4px;
+    }
+    .btn-full:hover { opacity: 0.85; }
+    .error-msg {
+      background: rgba(248,81,73,0.15);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+    }
+    .back-link { text-align: center; margin-top: 20px; font-size: 0.85rem; color: var(--text2); }
+    .back-link a { color: var(--accent); text-decoration: none; }
+    .back-link a:hover { text-decoration: underline; }
+    .register-note {
+      background: rgba(88,166,255,0.12);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+<div class="admin-card">
+  {% if registration_open %}
+    <h1>🔐 Create Admin Account</h1>
+    <p class="subtitle">No admin exists yet. The first registration becomes the permanent admin.</p>
+    {% if error %}
+      <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <div class="register-note">
+      ℹ️ After this account is created, registration will be permanently disabled.
+    </div>
+    <form method="POST">
+      <input type="hidden" name="action" value="register"/>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username"
+               placeholder="Choose a username"/>
+      </div>
+      <div class="form-group">
+        <label for="password">Password <span style="color:var(--text2)">(min 8 chars)</span></label>
+        <input type="password" id="password" name="password" required autocomplete="new-password"
+               placeholder="Choose a strong password" minlength="8"/>
+      </div>
+      <button type="submit" class="btn-full">Create Admin Account</button>
+    </form>
+  {% else %}
+    <h1>🔐 Admin Login</h1>
+    <p class="subtitle">Yot-Presentation administrator portal</p>
+    {% if error %}
+      <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+      <input type="hidden" name="action" value="login"/>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username"
+               placeholder="Admin username"/>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password"
+               placeholder="Password"/>
+      </div>
+      <button type="submit" class="btn-full">Log In</button>
+    </form>
+  {% endif %}
+  <div class="back-link"><a href="/">← Back to presentation</a></div>
+</div>
+</body>
+</html>
