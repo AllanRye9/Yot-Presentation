@@ -76,7 +76,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {
       // STT init failed (e.g. permission denied or engine unavailable).
       // Fall through to display the built-in fallback locale list.
-    }    if (mounted) {
+    }
+    if (mounted) {
       setState(() {
         _locales = _fallbackLocales;
         _loadingLocales = false;

@@ -5,15 +5,16 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Microphone for voice commands -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <!-- Needed by speech_to_text on some Android versions -->
-    <uses-permission android:name="android.permission.BLUETOOTH"/>
+    <!-- Needed by speech_to_text on Android ≤10 (API 30) -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30"/>
+    <!-- Needed by speech_to_text on Android 12+ (API 31+) -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
 
     <application
         android:label="Yot-Presentation"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
 
         <activity
