@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../models/presentation_file.dart';
 import 'presentation_screen.dart';
+import 'forex_screen.dart';
 
 /// Initial screen that lets the user upload a file or select from the
 /// list of files already available on the server.
@@ -153,6 +154,16 @@ class _UploadScreenState extends State<UploadScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Text('📈', style: TextStyle(fontSize: 20)),
+            tooltip: 'Forex Hub',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ForexScreen(serverUrl: widget.serverUrl),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh files',
