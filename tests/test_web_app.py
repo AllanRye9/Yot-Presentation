@@ -8,12 +8,14 @@ Run with:  python -m pytest tests/test_web_app.py -v
 import io
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 # Allow importing from web/
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import web.app as _web_app
 from web.app import (
     app,
     match_command,
@@ -36,6 +38,18 @@ def client():
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c
+
+
+@pytest.fixture
+def admin_client():
+    """Test client with a per-test isolated SQLite database for admin tests."""
+    app.config["TESTING"] = True
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_db = _web_app.DB_PATH
+        _web_app.DB_PATH = Path(tmpdir) / "test_admin.db"
+        with app.test_client() as c:
+            yield c
+        _web_app.DB_PATH = original_db
 
 
 # ─── command matching (mirrors original v5.3.1 patterns) ─────────────────
@@ -835,3 +849,110 @@ class TestAnalyzeChartImage:
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data["width"] == 10
+
+
+# ─── admin authentication & dashboard ─────────────────────────────────────────
+
+
+class TestAdminAuth:
+    """Tests for admin registration, login, logout, and protected routes."""
+
+    def _register(self, client, username="admin", password="securepass"):
+        return client.post(
+            "/admin/login",
+            data={"action": "register", "username": username, "password": password},
+            follow_redirects=False,
+        )
+
+    def _login(self, client, username="admin", password="securepass"):
+        return client.post(
+            "/admin/login",
+            data={"action": "login", "username": username, "password": password},
+            follow_redirects=False,
+        )
+
+    def test_login_page_shows_register_form_when_no_admin(self, admin_client):
+        resp = admin_client.get("/admin/login")
+        assert resp.status_code == 200
+        assert b"Create Admin Account" in resp.data
+
+    def test_admin_index_redirects_to_login(self, admin_client):
+        resp = admin_client.get("/admin", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/admin/login" in resp.headers["Location"]
+
+    def test_dashboard_requires_login(self, admin_client):
+        resp = admin_client.get("/admin/dashboard", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/admin/login" in resp.headers["Location"]
+
+    def test_stats_api_requires_login(self, admin_client):
+        resp = admin_client.get("/admin/api/stats", follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_register_first_admin(self, admin_client):
+        resp = self._register(admin_client)
+        # Should redirect to dashboard after successful registration
+        assert resp.status_code == 302
+        assert "/admin/dashboard" in resp.headers["Location"]
+
+    def test_register_second_admin_forbidden(self, admin_client):
+        self._register(admin_client, "admin", "securepass")
+        resp = admin_client.post(
+            "/admin/login",
+            data={"action": "register", "username": "admin2", "password": "anotherpassword"},
+        )
+        assert resp.status_code == 200
+        assert b"already exists" in resp.data
+
+    def test_login_with_correct_credentials(self, admin_client):
+        self._register(admin_client)
+        resp = self._login(admin_client)
+        assert resp.status_code == 302
+        assert "/admin/dashboard" in resp.headers["Location"]
+
+    def test_login_with_wrong_password(self, admin_client):
+        self._register(admin_client)
+        resp = self._login(admin_client, password="wrongpassword")
+        assert resp.status_code == 200
+        assert b"Invalid username or password" in resp.data
+
+    def test_dashboard_accessible_after_login(self, admin_client):
+        self._register(admin_client)
+        resp = admin_client.get("/admin/dashboard")
+        assert resp.status_code == 200
+        assert b"Admin Dashboard" in resp.data
+
+    def test_stats_api_accessible_after_login(self, admin_client):
+        self._register(admin_client)
+        resp = admin_client.get("/admin/api/stats")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "totals" in data
+        assert "top_commands" in data
+        assert "recent_events" in data
+        assert "daily_uploads" in data
+
+    def test_logout_clears_session(self, admin_client):
+        self._register(admin_client)
+        admin_client.get("/admin/logout")
+        resp = admin_client.get("/admin/dashboard", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/admin/login" in resp.headers["Location"]
+
+    def test_register_rejects_short_password(self, admin_client):
+        resp = admin_client.post(
+            "/admin/login",
+            data={"action": "register", "username": "admin", "password": "short"},
+        )
+        assert resp.status_code == 200
+        assert b"8 characters" in resp.data
+
+    def test_login_page_shows_login_form_after_registration(self, admin_client):
+        self._register(admin_client)
+        # Log out, then reload login page – should now show login form, not register
+        admin_client.get("/admin/logout")
+        resp = admin_client.get("/admin/login")
+        assert resp.status_code == 200
+        assert b"Log In" in resp.data
+        assert b"Create Admin Account" not in resp.data

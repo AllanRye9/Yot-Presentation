@@ -19,11 +19,13 @@ import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_cors import CORS
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 # Allow cross-origin requests from clients.  Set the
@@ -51,6 +53,25 @@ except PermissionError:
     DATA_DIR = Path(tempfile.gettempdir()) / "yot-data"
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "yot_learning.db"
+
+# ─── session secret key ───────────────────────────────────────────────────
+# Use a stable key so sessions survive restarts.  Priority:
+#  1. SECRET_KEY env-var (recommended for production)
+#  2. .secret_key file persisted in DATA_DIR
+_env_secret = os.environ.get("SECRET_KEY")
+if _env_secret:
+    app.secret_key = _env_secret
+else:
+    _secret_key_file = DATA_DIR / ".secret_key"
+    if _secret_key_file.exists():
+        app.secret_key = _secret_key_file.read_bytes()
+    else:
+        _generated_key = os.urandom(32)
+        try:
+            _secret_key_file.write_bytes(_generated_key)
+        except OSError:
+            pass
+        app.secret_key = _generated_key
 
 # In-memory file registry: file_id → {filename, total_slides, slides,
 #                                      created_at, thumbnail}
@@ -534,6 +555,62 @@ def get_suggestions(limit: int = 5) -> list[dict[str, Any]]:
 
 
 # ─────────────────────────────────────────────
+# admin – authentication & event tracking
+# ─────────────────────────────────────────────
+
+
+def _get_admin_db() -> sqlite3.Connection:
+    """Return a DB connection with admin tables created if not present."""
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            username     TEXT    UNIQUE NOT NULL,
+            password_hash TEXT   NOT NULL,
+            created_at   TEXT   NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS site_events (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT    NOT NULL,
+            detail     TEXT    NOT NULL DEFAULT '',
+            ts         TEXT    NOT NULL
+        );
+        """
+    )
+    conn.commit()
+    return conn
+
+
+def _admin_exists() -> bool:
+    """Return True when at least one admin account has been registered."""
+    with _get_admin_db() as conn:
+        row = conn.execute("SELECT COUNT(*) AS cnt FROM admin_users").fetchone()
+        return row["cnt"] > 0
+
+
+def _record_event(event_type: str, detail: str = "") -> None:
+    """Persist a site event for the admin dashboard."""
+    ts = datetime.now(timezone.utc).isoformat()
+    with _get_admin_db() as conn:
+        conn.execute(
+            "INSERT INTO site_events (event_type, detail, ts) VALUES (?,?,?)",
+            (event_type, detail, ts),
+        )
+
+
+def _admin_login_required(f):
+    """Decorator that redirects unauthenticated requests to the login page."""
+    @wraps(f)
+    def _decorated(*args, **kwargs):
+        if not session.get("admin_logged_in"):
+            return redirect(url_for("admin_login"))
+        return f(*args, **kwargs)
+    return _decorated
+
+
+# ─────────────────────────────────────────────
 # file management helpers
 # ─────────────────────────────────────────────
 
@@ -618,6 +695,7 @@ def upload_file():
         }
         slides = converters[ext](file_bytes)
         file_id = _register_file(filename, slides)
+        _record_event("upload", filename)
         return jsonify(
             {
                 "success": True,
@@ -681,7 +759,9 @@ def delete_file(file_id: str):
     try:
         if file_id not in _file_registry:
             return jsonify({"error": "File not found"}), 404
+        filename = _file_registry[file_id]["filename"]
         del _file_registry[file_id]
+        _record_event("delete", filename)
         return jsonify({"success": True, "deleted": file_id})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -704,6 +784,7 @@ def learn():
 
     try:
         record_command(command, text, lang, confidence)
+        _record_event("voice_command", command)
         return jsonify({"success": True})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -967,7 +1048,146 @@ def ai_analyze_chart():
         return jsonify({"error": str(exc)}), 500
 
 
-if __name__ == "__main__":
+# ─── admin authentication ─────────────────────────────────────────────────────
+
+
+@app.route("/admin")
+def admin_index():
+    """Redirect to dashboard if logged in, otherwise to login."""
+    if session.get("admin_logged_in"):
+        return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    """Login page for the admin.  Shows a registration form when no admin exists yet."""
+    error = None
+    if request.method == "POST":
+        action = request.form.get("action", "login")
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if action == "register":
+            if _admin_exists():
+                error = "An admin account already exists. Please log in."
+            elif not username or not password:
+                error = "Username and password are required."
+            elif len(password) < 8:
+                error = "Password must be at least 8 characters."
+            else:
+                ts = datetime.now(timezone.utc).isoformat()
+                with _get_admin_db() as conn:
+                    conn.execute(
+                        "INSERT INTO admin_users (username, password_hash, created_at) VALUES (?,?,?)",
+                        (username, generate_password_hash(password), ts),
+                    )
+                session["admin_logged_in"] = True
+                session["admin_username"] = username
+                _record_event("admin_register", username)
+                return redirect(url_for("admin_dashboard"))
+        else:
+            # login
+            with _get_admin_db() as conn:
+                row = conn.execute(
+                    "SELECT password_hash FROM admin_users WHERE username = ?",
+                    (username,),
+                ).fetchone()
+            if row and check_password_hash(row["password_hash"], password):
+                session["admin_logged_in"] = True
+                session["admin_username"] = username
+                _record_event("admin_login", username)
+                return redirect(url_for("admin_dashboard"))
+            error = "Invalid username or password."
+
+    registration_open = not _admin_exists()
+    return render_template(
+        "admin_login.html",
+        error=error,
+        registration_open=registration_open,
+    )
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    """Clear the admin session and redirect to login."""
+    session.clear()
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin/dashboard")
+@_admin_login_required
+def admin_dashboard():
+    """Admin dashboard – overview page."""
+    return render_template(
+        "admin_dashboard.html",
+        username=session.get("admin_username", "Admin"),
+    )
+
+
+@app.route("/admin/api/stats")
+@_admin_login_required
+def admin_stats():
+    """Return JSON statistics for the admin dashboard."""
+    try:
+        with _get_admin_db() as conn:
+            # Event counts by type
+            event_rows = conn.execute(
+                """
+                SELECT event_type, COUNT(*) AS cnt
+                FROM   site_events
+                GROUP  BY event_type
+                ORDER  BY cnt DESC
+                """
+            ).fetchall()
+            event_counts: dict[str, int] = {r["event_type"]: r["cnt"] for r in event_rows}
+
+            # Recent events (last 50)
+            recent_rows = conn.execute(
+                """
+                SELECT event_type, detail, ts
+                FROM   site_events
+                ORDER  BY id DESC
+                LIMIT  50
+                """
+            ).fetchall()
+            recent_events = [
+                {"event_type": r["event_type"], "detail": r["detail"], "ts": r["ts"]}
+                for r in recent_rows
+            ]
+
+        # Voice-command frequency from ML learning DB
+        top_commands = get_suggestions(limit=10)
+
+        # Daily uploads – last 14 days
+        with _get_admin_db() as conn:
+            daily_rows = conn.execute(
+                """
+                SELECT substr(ts, 1, 10) AS day, COUNT(*) AS cnt
+                FROM   site_events
+                WHERE  event_type = 'upload'
+                  AND  ts >= datetime('now', '-14 days')
+                GROUP  BY day
+                ORDER  BY day
+                """
+            ).fetchall()
+            daily_uploads = [{"day": r["day"], "count": r["cnt"]} for r in daily_rows]
+
+        return jsonify(
+            {
+                "totals": {
+                    "uploads": event_counts.get("upload", 0),
+                    "deletes": event_counts.get("delete", 0),
+                    "voice_commands": event_counts.get("voice_command", 0),
+                    "files_in_library": len(_file_registry),
+                },
+                "top_commands": top_commands,
+                "recent_events": recent_events,
+                "daily_uploads": daily_uploads,
+            }
+        )
+    except Exception:
+        return jsonify({"error": "Failed to load statistics"}), 500
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(debug=debug, host="0.0.0.0", port=port)
