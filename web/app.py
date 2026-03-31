@@ -27,8 +27,21 @@ from typing import Any
 import requests as _requests
 
 from flask import Flask, jsonify, render_template, request
+from flask_cors import CORS
 
 app = Flask(__name__)
+# Allow cross-origin requests from the Flutter app.  Set the
+# ALLOWED_ORIGINS environment variable to a comma-separated list of
+# origins to restrict access in production (e.g.
+# "https://my-flutter-app.web.app,https://api.example.com").
+# Defaults to "*" so local development works out of the box.
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "*")
+_cors_origins: list[str] | str = (
+    [o.strip() for o in _raw_origins.split(",") if o.strip()]
+    if _raw_origins != "*"
+    else "*"
+)
+CORS(app, origins=_cors_origins)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
 
 # ─── runtime configuration ────────────────────────────────────────────────
