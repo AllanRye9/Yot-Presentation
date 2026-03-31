@@ -146,11 +146,15 @@ class _UploadScreenState extends State<UploadScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text('🎤', style: TextStyle(fontSize: 22)),
             SizedBox(width: 8),
-            Text('Yot-Presentation',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            Flexible(
+              child: Text('Yot-Presentation',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ],
         ),
         actions: [
