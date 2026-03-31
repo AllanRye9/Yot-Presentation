@@ -34,6 +34,11 @@ const _kBorderColor = Color(0xFF30363d);
 
 const _kGameKey = 'fxHubGame';
 
+// ── Pulse animation ───────────────────────────────────────────────────────────
+
+const double _kPulseMinOpacity = 0.35;
+const double _kPulseMaxOpacity = 1.0;
+
 class _GameState {
   int xp;
   int level;
@@ -129,8 +134,9 @@ const _kBadgeMap = {
 /// the web interface at /forex.
 class ForexScreen extends StatefulWidget {
   final String serverUrl;
+  final VoidCallback? onSettingsTap;
 
-  const ForexScreen({super.key, required this.serverUrl});
+  const ForexScreen({super.key, required this.serverUrl, this.onSettingsTap});
 
   @override
   State<ForexScreen> createState() => _ForexScreenState();
@@ -518,20 +524,44 @@ class _ForexScreenState extends State<ForexScreen>
 
   PreferredSizeWidget _buildAppBar(ColorScheme cs) {
     return AppBar(
-      backgroundColor: Colors.transparent,
-      title: const Row(children: [
-        Text('📈', style: TextStyle(fontSize: 22)),
-        SizedBox(width: 8),
-        Text('AI Forex Signal Hub',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-      ]),
+      backgroundColor: const Color(0xFF0d1117),
+      elevation: 0,
+      title: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('📈', style: TextStyle(fontSize: 22)),
+          SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'AI Forex Signal Hub',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+        ],
+      ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Refresh',
+          icon: _loadingSignal
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.refresh),
+          tooltip: 'Refresh signals',
           onPressed: _loadingSignal ? null : _loadSignal,
         ),
+        if (widget.onSettingsTap != null)
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: widget.onSettingsTap,
+          ),
       ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: _kBorderColor),
+      ),
     );
   }
 
@@ -541,14 +571,33 @@ class _ForexScreenState extends State<ForexScreen>
     final xpInLevel = _game.xp % _kXpPerLevel;
     final xpPct     = xpInLevel / _kXpPerLevel;
     return Container(
-      color: _kCardBg,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        border: const Border(
+          bottom: BorderSide(color: _kBorderColor),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text('XP', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6), fontSize: 12)),
-            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: cs.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: cs.primary.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                'Lv ${_game.level}',
+                style: TextStyle(
+                    color: cs.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
@@ -556,31 +605,52 @@ class _ForexScreenState extends State<ForexScreen>
                   value: xpPct,
                   backgroundColor: _kBorderColor,
                   color: cs.primary,
-                  minHeight: 6,
+                  minHeight: 7,
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            Text('${_game.xp} (Lv ${_game.level})',
-                style: TextStyle(color: cs.primary, fontSize: 12, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 16),
-            Text('🔥 ${_game.streak}',
-                style: const TextStyle(fontSize: 12)),
-            const SizedBox(width: 12),
-            Text('✅ ${_game.signalsWatched}',
-                style: const TextStyle(fontSize: 12)),
+            Text('${_game.xp} XP',
+                style: TextStyle(
+                    color: cs.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(width: 14),
+            Row(children: [
+              const Text('🔥', style: TextStyle(fontSize: 13)),
+              const SizedBox(width: 3),
+              Text('${_game.streak}',
+                  style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            ]),
+            const SizedBox(width: 10),
+            Row(children: [
+              const Text('✅', style: TextStyle(fontSize: 13)),
+              const SizedBox(width: 3),
+              Text('${_game.signalsWatched}',
+                  style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            ]),
           ]),
           if (_game.badges.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 7),
             Wrap(
-              spacing: 4,
+              spacing: 6,
+              runSpacing: 4,
               children: _game.badges
                   .where((id) => _kBadgeMap.containsKey(id))
                   .map((id) {
                 final info = _kBadgeMap[id]!;
                 return Tooltip(
                   message: info.$2,
-                  child: Text(info.$1, style: const TextStyle(fontSize: 18)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _kBorderColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(info.$1,
+                        style: const TextStyle(fontSize: 16)),
+                  ),
                 );
               }).toList(),
             ),
@@ -646,65 +716,90 @@ class _ForexScreenState extends State<ForexScreen>
   // Pair selector + refresh row
   Widget _buildPairSelector(ColorScheme cs) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: _kCardBg,
         border: Border.all(color: _kBorderColor),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
-        Text('Pair: ', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
+        Text('Pair: ',
+            style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.6),
+                fontWeight: FontWeight.w500)),
         Expanded(
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _currentPair,
               isExpanded: true,
               dropdownColor: _kCardBg,
-              style: TextStyle(color: cs.onSurface),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w600),
               onChanged: _onPairChanged,
               items: [
                 const DropdownMenuItem<String>(
                   enabled: false,
                   value: null,
                   child: Text('── Major Pairs ──',
-                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                      style: TextStyle(
+                          color: Colors.white38, fontSize: 13)),
                 ),
-                ..._kMajorPairs.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+                ..._kMajorPairs.map((p) =>
+                    DropdownMenuItem(value: p, child: Text(p))),
                 const DropdownMenuItem<String>(
                   enabled: false,
                   value: null,
                   child: Text('── Cross Pairs ──',
-                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                      style: TextStyle(
+                          color: Colors.white38, fontSize: 13)),
                 ),
-                ..._kCrossPairs.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+                ..._kCrossPairs.map((p) =>
+                    DropdownMenuItem(value: p, child: Text(p))),
                 const DropdownMenuItem<String>(
                   enabled: false,
                   value: null,
                   child: Text('── Commodities ──',
-                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                      style: TextStyle(
+                          color: Colors.white38, fontSize: 13)),
                 ),
-                ..._kCommodityPairs.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+                ..._kCommodityPairs.map((p) =>
+                    DropdownMenuItem(value: p, child: Text(p))),
               ],
             ),
           ),
         ),
+        if (_signal != null) ...[
+          const SizedBox(width: 6),
+          if (_signal!.isLive)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _PulseDot(color: _kBuyColor),
+                const SizedBox(width: 4),
+                const Text('Live',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: _kBuyColor,
+                        fontWeight: FontWeight.w600)),
+              ],
+            )
+          else
+            Text('Cached',
+                style: TextStyle(
+                    fontSize: 11, color: _kHoldColor)),
+        ],
         IconButton(
           icon: _loadingSignal
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.refresh),
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.refresh, size: 20),
           onPressed: _loadingSignal ? null : _loadSignal,
           tooltip: 'Refresh signal',
+          padding: const EdgeInsets.all(8),
+          constraints: const BoxConstraints(),
         ),
-        if (_signal != null)
-          Flexible(
-            child: Text(
-              _signal!.isLive ? '🟢 Live' : '🟡 Cached',
-              style: TextStyle(
-                fontSize: 12,
-                color: _signal!.isLive ? _kBuyColor : _kHoldColor,
-              ),
-            ),
-          ),
       ]),
     );
   }
@@ -717,13 +812,20 @@ class _ForexScreenState extends State<ForexScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: _kCardBg,
-        border: Border.all(color: dirColor.withValues(alpha: 0.4), width: 1.5),
+        border: Border.all(color: dirColor.withValues(alpha: 0.5), width: 1.5),
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: dirColor.withValues(alpha: 0.12),
+            blurRadius: 24,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Direction badge
+          // Direction badge + date + live indicator
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -744,19 +846,56 @@ class _ForexScreenState extends State<ForexScreen>
                   ),
                 ),
               ),
-              Text(
-                _fmtDate(s.generatedAt),
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.5),
-                  fontSize: 12,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (s.isLive)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _PulseDot(color: _kBuyColor),
+                        const SizedBox(width: 5),
+                        const Text('Live',
+                            style: TextStyle(
+                                color: _kBuyColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                                color: _kHoldColor,
+                                shape: BoxShape.circle)),
+                        const SizedBox(width: 5),
+                        const Text('Cached',
+                            style: TextStyle(
+                                color: _kHoldColor, fontSize: 12)),
+                      ],
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _fmtDate(s.generatedAt),
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.45),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 16),
           // Confidence bar
           Row(children: [
-            Text('Confidence ', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
+            Text('Confidence ',
+                style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.7))),
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
@@ -770,49 +909,73 @@ class _ForexScreenState extends State<ForexScreen>
             ),
             const SizedBox(width: 8),
             Text('${s.confidence.toStringAsFixed(1)}%',
-                style: TextStyle(color: dirColor, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: dirColor, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 8),
           // 30-day accuracy
           RichText(
             text: TextSpan(
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7), fontSize: 13),
+              style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.7),
+                  fontSize: 13),
               children: [
                 const TextSpan(text: '30-day accuracy: '),
                 TextSpan(
                   text: '${s.accuracy30d.toStringAsFixed(1)}%',
                   style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
           // Price levels
-          Row(children: [
-            Expanded(child: _priceLevelTile('Entry Price', _fmt(s.entryPrice, _currentPair), Colors.white, cs)),
-            Expanded(child: _priceLevelTile('Take Profit', _fmt(s.takeProfit, _currentPair), _kBuyColor, cs)),
-            Expanded(child: _priceLevelTile('Stop Loss',   _fmt(s.stopLoss, _currentPair),   _kSellColor, cs)),
-          ]),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(children: [
+              Expanded(
+                  child: _priceLevelTile('Entry Price',
+                      _fmt(s.entryPrice, _currentPair), Colors.white, cs)),
+              Container(width: 1, height: 40, color: _kBorderColor),
+              Expanded(
+                  child: _priceLevelTile('Take Profit',
+                      _fmt(s.takeProfit, _currentPair), _kBuyColor, cs)),
+              Container(width: 1, height: 40, color: _kBorderColor),
+              Expanded(
+                  child: _priceLevelTile('Stop Loss',
+                      _fmt(s.stopLoss, _currentPair), _kSellColor, cs)),
+            ]),
+          ),
           const SizedBox(height: 12),
           // Model info
           Wrap(spacing: 8, runSpacing: 4, children: [
-            Text('Model: ', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6), fontSize: 12)),
-            Text(s.modelVersion, style: const TextStyle(fontSize: 12)),
+            Text('Model: ',
+                style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.6),
+                    fontSize: 12)),
+            Text(s.modelVersion,
+                style: const TextStyle(fontSize: 12)),
             ...s.featuresUsed.map((f) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: cs.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(f, style: TextStyle(fontSize: 11, color: cs.primary)),
+              child: Text(f,
+                  style: TextStyle(fontSize: 11, color: cs.primary)),
             )),
           ]),
         ],
       ),
     );
   }
-
   Widget _priceLevelTile(String label, String value, Color valueColor, ColorScheme cs) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1439,41 +1602,56 @@ class _ForexScreenState extends State<ForexScreen>
                          : item.sentiment == 'negative' ? _kSellColor
                          : _kHoldColor;
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _kCardBg,
-        border: Border.all(color: _kBorderColor),
+        border: Border(
+          left: BorderSide(color: sentimentColor, width: 3),
+          top: const BorderSide(color: _kBorderColor),
+          right: const BorderSide(color: _kBorderColor),
+          bottom: const BorderSide(color: _kBorderColor),
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(sentimentIcon, style: const TextStyle(fontSize: 22)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.headline,
-                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-            const SizedBox(height: 4),
-            Row(children: [
-              Text(item.source,
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.5), fontSize: 12)),
-              const SizedBox(width: 10),
-              Text(_fmtDate(item.publishedAt),
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.4), fontSize: 12)),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: sentimentColor.withValues(alpha: 0.15),
-                  border: Border.all(color: sentimentColor.withValues(alpha: 0.5)),
-                  borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(sentimentIcon, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(item.headline,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w500, fontSize: 14)),
+              const SizedBox(height: 5),
+              Row(children: [
+                Text(item.source,
+                    style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.5),
+                        fontSize: 12)),
+                const SizedBox(width: 10),
+                Text(_fmtDate(item.publishedAt),
+                    style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.4),
+                        fontSize: 12)),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: sentimentColor.withValues(alpha: 0.15),
+                    border: Border.all(
+                        color: sentimentColor.withValues(alpha: 0.5)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(item.sentiment,
+                      style:
+                          TextStyle(fontSize: 11, color: sentimentColor)),
                 ),
-                child: Text(item.sentiment,
-                    style: TextStyle(fontSize: 11, color: sentimentColor)),
-              ),
+              ]),
             ]),
-          ]),
-        ),
-      ]),
+          ),
+        ]),
+      ),
     );
   }
 
@@ -1712,4 +1890,62 @@ class _AccuracyChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(_AccuracyChartPainter old) =>
       old.history != history || old.pair != pair;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// _PulseDot – animated pulsing circle for live signal indicator
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _PulseDot extends StatefulWidget {
+  final Color color;
+  const _PulseDot({required this.color});
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: _kPulseMinOpacity, end: _kPulseMaxOpacity).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: widget.color.withValues(alpha: _anim.value),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: _anim.value * 0.6),
+              blurRadius: 6,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
