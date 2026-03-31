@@ -976,8 +976,8 @@ def ai_analyze_chart():
 #               does not carry XAU/gold data)
 _FRANKFURTER_BASE = "https://api.frankfurter.app"
 _YAHOO_FINANCE_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
-# Yahoo Finance ticker for spot gold quoted in USD
-_GOLD_TICKER = "GC=F"
+# Yahoo Finance ticker for spot gold quoted in USD (XAU/USD forex spot rate)
+_GOLD_TICKER = "XAUUSD=X"
 _RATE_CACHE: dict[str, dict] = {}
 _CACHE_LOCK = Lock()
 _CACHE_TTL_SECONDS = 300  # refresh every 5 minutes
@@ -994,9 +994,10 @@ _YF_HEADERS = {
 def _fetch_gold_rate() -> float | None:
     """Return the current XAU/USD spot price via Yahoo Finance.
 
-    Uses the ``GC=F`` (gold futures) ticker which closely tracks the XAU/USD
-    spot rate.  Results are cached for :data:`_CACHE_TTL_SECONDS` seconds.
-    Returns ``None`` when the API is unreachable.
+    Uses the ``XAUUSD=X`` (XAU/USD forex spot) ticker which directly reflects
+    the spot gold trading price.  Results are cached for
+    :data:`_CACHE_TTL_SECONDS` seconds.  Returns ``None`` when the API is
+    unreachable.
     """
     cache_key = "rate:XAU/USD"
     now = datetime.now(timezone.utc).timestamp()
@@ -1392,9 +1393,9 @@ _FOREX_SIGNALS: dict[str, dict[str, Any]] = {
     "XAU/USD": {
         "direction": "BUY",
         "confidence": 71.4,
-        "entry_price": 3085.00,
-        "take_profit": 3145.00,
-        "stop_loss": 3050.00,
+        "entry_price": 3120.00,
+        "take_profit": 3180.00,
+        "stop_loss": 3085.00,
         "generated_at": "2026-03-30T09:00:00Z",
         "model_version": "LightGBM v2.3",
         "features_used": _FEATURES_DEFAULT,
@@ -1445,7 +1446,7 @@ _FOREX_HIST_SEQUENCES: dict[str, tuple[float, float, list[tuple[str, str, int]]]
     "GBP/JPY": (189.40, 0.01,   _gen_seq("GBP/JPY")),
     "GBP/CHF": (1.1410, 0.0001, _gen_seq("GBP/CHF")),
     "AUD/JPY": (98.20,  0.01,   _gen_seq("AUD/JPY")),
-    "XAU/USD": (3050.00, 1.0,   _gen_seq("XAU/USD")),
+    "XAU/USD": (3120.00, 1.0,   _gen_seq("XAU/USD")),
 }
 
 _FOREX_NEWS: list[dict[str, Any]] = [
